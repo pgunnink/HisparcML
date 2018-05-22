@@ -27,12 +27,14 @@ def update_timings(t):
 
 
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
-                             find_mips=True):
+                             find_mips=True, uniform_dist=False):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
     :param new_file_location: location of h5 file made by read_sapphire_simulation
     :param N_stations: number of stations in h5 file
+    :param find_mips: if True create pulseheight histogram and calculate MIPS from that (default: True)
+    :param uniform_dist: if True force uniform distribution
     :return: nothing
     """
 
@@ -41,6 +43,21 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     with tables.open_file(file_location, 'r') as data:
         entries = len(data.root.traces.Traces) # count number of samples
 
+        # create an uniform distribution by looking at what zenith angle has the lowest
+        #  number of events and using only that amount of angles
+        if uniform_dist:
+            available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
+            events = []
+            for angle in available_zeniths:
+                settings = {'zenith_upper_bound': np.radians(angle + 1),
+                            'angle_lower_bound': np.radians(angle - 1)}
+                res = data.root.traces.Traces.read_where(
+                    "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
+                events.append(len(res))
+            events = np.array(events)
+            print({k:v for k, v in zip(available_zeniths,events)})
+            min_val = np.amin(events)
+            entries = min_val*len(available_zeniths)
         # create empty arrays
         traces = np.empty([entries,N_stations,4,80])
         labels = np.empty([entries,N_stations])
@@ -49,17 +66,35 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         rec_z = np.empty([entries])
         rec_a = np.empty([entries])
         zenith = np.empty([entries])
-        # loop over all entries and fill them
-        i = 0
-        for row in data.root.traces.Traces.iterrows():
-            traces[i,:] = row['traces']
-            labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
-            timings[i,:] = row['timings']
-            rec_z[i] = row['zenith_rec']
-            rec_a[i] = row['azimuth_rec']
-            pulseheights[i] = row['pulseheights']
-            zenith[i] = row['zenith']
-            i += 1
+
+        if uniform_dist:
+            i = 0
+            for angle in available_zeniths:
+                settings = {'zenith_upper_bound': np.radians(angle + 1),
+                            'angle_lower_bound': np.radians(angle - 1)}
+                res = data.root.traces.Traces.read_where(
+                    "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
+                for row in res[:min_val]:
+                    traces[i, :] = row['traces']
+                    labels[i, :] = np.array([[row['x'], row['y'], row['z']]])
+                    timings[i, :] = row['timings']
+                    rec_z[i] = row['zenith_rec']
+                    rec_a[i] = row['azimuth_rec']
+                    pulseheights[i] = row['pulseheights']
+                    zenith[i] = row['zenith']
+                    i += 1
+        else:
+            # loop over all entries and fill them
+            i = 0
+            for row in data.root.traces.Traces.iterrows():
+                traces[i,:] = row['traces']
+                labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
+                timings[i,:] = row['timings']
+                rec_z[i] = row['zenith_rec']
+                rec_a[i] = row['azimuth_rec']
+                pulseheights[i] = row['pulseheights']
+                zenith[i] = row['zenith']
+                i += 1
 
         # remove part of the array that was not filled
         # ( in case some filter criterium was used )
