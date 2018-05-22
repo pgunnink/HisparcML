@@ -69,7 +69,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
         if uniform_dist:
             i = 0
-            for angle in available_zeniths:
+            for angle in pbar(available_zeniths):
                 settings = {'zenith_upper_bound': np.radians(angle + 1),
                             'angle_lower_bound': np.radians(angle - 1)}
                 res = data.root.traces.Traces.read_where(
@@ -86,7 +86,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         else:
             # loop over all entries and fill them
             i = 0
-            for row in data.root.traces.Traces.iterrows():
+            for row in pbar(data.root.traces.Traces.iterrows(), entries):
                 traces[i,:] = row['traces']
                 labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
                 timings[i,:] = row['timings']
@@ -134,7 +134,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     # calculate total trace (aka the pulseintegral)
     total_traces = np.reshape(np.sum(np.abs(traces),axis=2), [-1, N_stations * 4, 1])
     # normalize the timings
-    for i in range(timings.shape[0]):
+    for i in pbar(range(timings.shape[0])):
         timings[i,:] = update_timings(timings[i,:])
     # again reshape the timings
     timings = np.reshape(timings, [-1, N_stations * 4, 1])
