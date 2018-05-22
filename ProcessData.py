@@ -26,7 +26,8 @@ def update_timings(t):
     return t_new
 
 
-def read_sapphire_simulation(file_location, new_file_location, N_stations):
+def read_sapphire_simulation(file_location, new_file_location, N_stations,
+                             find_mips=True):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
@@ -68,27 +69,28 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations):
         rec_z = rec_z[0:i,]
         rec_a = rec_a[0:i,]
 
-    # From this data determine the MiP peak
-    # first create a pulseheight histogram
-    pulseheights_flat = pulseheights.flatten()
-    pulseheights_flat = pulseheights_flat.compress(np.abs(pulseheights_flat)>0)
-    h, bins = np.histogram(pulseheights_flat, bins=100)
-    # find the peak in this pulseheight histogram
-    find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
-    mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
-                                    # second a boolean that is False if the search failed
+    if find_mips:
+        # From this data determine the MiP peak
+        # first create a pulseheight histogram
+        pulseheights_flat = pulseheights.flatten()
+        pulseheights_flat = pulseheights_flat.compress(np.abs(pulseheights_flat)>0)
+        h, bins = np.histogram(pulseheights_flat, bins=100)
+        # find the peak in this pulseheight histogram
+        find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
+        mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
+                                        # second a boolean that is False if the search failed
 
-    # ensure that the algorithm did not fail:
-    if mpv[1]:
-        mpv = mpv[0]
-    else:
-        raise AssertionError('No MPV found!')
+        # ensure that the algorithm did not fail:
+        if mpv[1]:
+            mpv = mpv[0]
+        else:
+            raise AssertionError('No MPV found!')
 
-    # calculate number of mips per trace
-    pulseheights = np.reshape(pulseheights, [-1, N_stations * 4, 1])
-    mips = np.zeros(pulseheights.shape)
-    for i in range(pulseheights.shape[0]):
-        mips[i,:] = pulseheights[i,:]/mpv
+        # calculate number of mips per trace
+        pulseheights = np.reshape(pulseheights, [-1, N_stations * 4, 1])
+        mips = np.zeros(pulseheights.shape)
+        for i in range(pulseheights.shape[0]):
+            mips[i,:] = pulseheights[i,:]/mpv
 
     # reshape traces such that for every coincidence we have N_stations*4 traces
     traces = np.reshape(traces, [-1, N_stations * 4, 80, 1])
@@ -109,7 +111,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations):
         traces_set = f.create_dataset('traces',data=traces)
         labels_set = f.create_dataset('labels', data=labels)
         input_features_set = f.create_dataset('input_features',data=input_features)
-        mips_set = f.create_dataset('mips',data=mips)
+        if find_mips:
+            mips_set = f.create_dataset('mips',data=mips)
         rec_z_set = f.create_dataset('rec_z', data=rec_z)
         rec_a_set = f.create_dataset('rec_a', data=rec_a)
         f.close()
