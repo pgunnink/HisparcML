@@ -6,7 +6,6 @@ import os
 from sapphire import HiSPARCStations
 from DegRad import azimuth_zenith_to_cartestian
 
-
 def merge(stations, output = None, orig_stations=None, directory='.', verbose=True):
     """
     Merges the simulation data from individual 'the_simulation.h5' files from the
@@ -98,10 +97,9 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 timings_station = np.array(
                                     [station_event['t1'], station_event['t2'],
                                      station_event['t3'], station_event['t4']])
-                                timings_station[timings_station <= -999] = 0
+                                timings_station[timings_station < 0] = 0
                                 timings[station, :] = timings_station
                                 pulseheights[station, :] = station_event['pulseheights']
-
                         row['traces'] = trace
                         row['N'] = coin['N']
                         row['azimuth'] = azimuth
