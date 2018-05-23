@@ -1,6 +1,6 @@
 import keras.backend as K
 import tensorflow as tf
-from DegRad import rad2deg
+import numpy as np
 
 
 
@@ -24,6 +24,7 @@ def metric_degrees_difference(y_true, y_pred):
     # now the angle between them is the arccos of this inproduct
     angle = tf.acos(inproduct)
 
+    mean_angle = K.mean(angle)
+    mean_angle_degrees = mean_angle*180/np.pi
     # transform radians to degrees
-    angle = rad2deg(angle)
-    return K.mean(angle)
+    return mean_angle_degrees
