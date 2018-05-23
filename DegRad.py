@@ -46,6 +46,9 @@ def angle_between_two_vectors(y1, y2):
     :return: angle in degrees
     """
     inproduct = np.sum(np.multiply(y1, y2), axis=1)
-    angle = np.divide(inproduct, np.linalg.norm(y1, axis=1,
-                                                keepdims=True)*np.linalg.norm(y2, axis=1, keepdims=True))
+    norm12 = np.multiply(np.linalg.norm(y1, axis=1,keepdims=True),np.linalg.norm(y2, axis=1, keepdims=True))
+    angle = np.arccos(np.divide(inproduct, norm12))
     return rad2deg(angle)
+
+
+
