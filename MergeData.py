@@ -7,7 +7,7 @@ from sapphire import HiSPARCStations
 from DegRad import azimuth_zenith_to_cartestian
 
 
-def merge(stations, output = None, orig_stations=None, directory='.'):
+def merge(stations, output = None, orig_stations=None, directory='.', verbose=True):
     """
     Merges the simulation data from individual 'the_simulation.h5' files from the
     core.* directories inside a certain directory
@@ -121,7 +121,8 @@ def merge(stations, output = None, orig_stations=None, directory='.'):
 
                 data.close()
             except:
-                print('Error occurred in %s' % (d))
+                if verbose:
+                    print('Error occurred in %s' % (d))
                 # pdb.set_trace()
                 data.close()
                 # os.system('rm -r %s' % d)
