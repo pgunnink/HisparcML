@@ -141,6 +141,17 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     # concatenate the pulseintegrals and timings
     input_features = np.concatenate((total_traces,timings),axis=2)
 
+
+    # shuffle everything
+    permutation = np.random.permutation(traces.shape[0])
+    traces = traces[permutation]
+    labels = labels[permutation]
+    input_features = input_features[permutation]
+    if find_mips:
+        mips = mips[permutation]
+    rec_z = rec_z[permutation]
+    rec_a = rec_a[permutation]
+
     # Save everything into a h5 file
     with h5py.File(new_file_location, 'w') as f:
         traces_set = f.create_dataset('traces',data=traces)
