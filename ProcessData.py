@@ -65,7 +65,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         pulseheights = np.empty([entries, N_stations, 4])
         rec_z = np.empty([entries])
         rec_a = np.empty([entries])
-        zenith = np.empty([entries])
+        #zenith = np.empty([entries])
 
         if uniform_dist:
             i = 0
@@ -81,7 +81,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     rec_z[i] = row['zenith_rec']
                     rec_a[i] = row['azimuth_rec']
                     pulseheights[i] = row['pulseheights']
-                    zenith[i] = row['zenith']
+                    #zenith[i] = row['zenith']
                     i += 1
         else:
             # loop over all entries and fill them
@@ -93,16 +93,16 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 rec_z[i] = row['zenith_rec']
                 rec_a[i] = row['azimuth_rec']
                 pulseheights[i] = row['pulseheights']
-                zenith[i] = row['zenith']
+                #zenith[i] = row['zenith']
                 i += 1
 
         # remove part of the array that was not filled
         # ( in case some filter criterium was used )
-        traces = traces[0:i,]
-        labels = labels[0:i,]
-        timings = timings[0:i,]
-        rec_z = rec_z[0:i,]
-        rec_a = rec_a[0:i,]
+        traces = traces[:i,]
+        labels = labels[:i,]
+        timings = timings[:i,]
+        rec_z = rec_z[:i,]
+        rec_a = rec_a[:i,]
 
     if find_mips:
         # From this data determine the MiP peak
@@ -144,11 +144,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
     # shuffle everything
     permutation = np.random.permutation(traces.shape[0])
-    traces = traces[permutation]
-    labels = labels[permutation]
-    input_features = input_features[permutation]
+    traces = traces[permutation,:]
+    labels = labels[permutation,:]
+    input_features = input_features[permutation,:]
     if find_mips:
-        mips = mips[permutation]
+        mips = mips[permutation,:]
     rec_z = rec_z[permutation]
     rec_a = rec_a[permutation]
 
