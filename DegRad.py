@@ -34,7 +34,7 @@ def cartestian_to_azimuth_zenith(x,y,z):
     :return: zenith, azimuth in radians
     """
     zenith = np.arccos(z/np.sqrt(z**2+x**2+y**2))
-    azimuth = np.arctan2(x,y)
+    azimuth = np.arctan2(y,x)
     return zenith,azimuth
 
 
