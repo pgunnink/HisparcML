@@ -60,7 +60,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             entries = min_val*len(available_zeniths)
         # create empty arrays
         traces = np.empty([entries,N_stations,4,80])
-        labels = np.empty([entries,N_stations])
+        labels = np.empty([entries,3])
         timings = np.empty([entries,N_stations,4])
         pulseheights = np.empty([entries, N_stations, 4])
         rec_z = np.empty([entries])
