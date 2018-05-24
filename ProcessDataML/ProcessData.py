@@ -65,7 +65,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         pulseheights = np.empty([entries, N_stations, 4])
         rec_z = np.empty([entries])
         rec_a = np.empty([entries])
-        #zenith = np.empty([entries])
+        zenith = np.empty([entries])
+        azimuth = np.empty([entries])
 
         if uniform_dist:
             i = 0
@@ -81,7 +82,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     rec_z[i] = row['zenith_rec']
                     rec_a[i] = row['azimuth_rec']
                     pulseheights[i] = row['pulseheights']
-                    #zenith[i] = row['zenith']
+                    zenith[i] = row['zenith']
+                    azimuth[i] = row['azimuth']
                     i += 1
         else:
             # loop over all entries and fill them
@@ -93,7 +95,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 rec_z[i] = row['zenith_rec']
                 rec_a[i] = row['azimuth_rec']
                 pulseheights[i] = row['pulseheights']
-                #zenith[i] = row['zenith']
+                azimuth[i] = row['azimuth']
                 i += 1
 
         # remove part of the array that was not filled
@@ -129,10 +131,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
     # reshape traces such that for every coincidence we have N_stations*4 traces
     traces = np.reshape(traces, [-1, N_stations * 4, 80, 1])
+    # calculate total trace (aka the pulseintegral)
+    total_traces = np.reshape(np.sum(np.abs(traces), axis=2), [-1, N_stations * 4, 1])
     # take the log of a positive trace
     traces = np.log10(-1*traces+1)
-    # calculate total trace (aka the pulseintegral)
-    total_traces = np.reshape(np.sum(np.abs(traces),axis=2), [-1, N_stations * 4, 1])
+    total_traces = np.log10(-1*total_traces+1)
     # normalize the timings
     for i in pbar(range(timings.shape[0])):
         timings[i,:] = update_timings(timings[i,:])
@@ -151,6 +154,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         mips = mips[permutation,:]
     rec_z = rec_z[permutation]
     rec_a = rec_a[permutation]
+    zenith = zenith[permutation]
+    azimuth = azimuth[permutation]
 
     # Save everything into a h5 file
     with h5py.File(new_file_location, 'w') as f:
@@ -161,4 +166,6 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             mips_set = f.create_dataset('mips',data=mips)
         rec_z_set = f.create_dataset('rec_z', data=rec_z)
         rec_a_set = f.create_dataset('rec_a', data=rec_a)
+        zenith_set = f.create_dataset('zenith', data=zenith)
+        azimuth_set = f.create_dataset('azimuth', data=azimuth)
         f.close()
