@@ -16,7 +16,7 @@ def azimuth_zenith_to_cartestian(zenith, azimuth):
     convert a direction described by a azimuth and zenith angle into a vector in
     cartesian coordinates pointing in that direction
     :param zenith: zenith in radians
-    :param azimuth: azimuht in radians
+    :param azimuth: azimuth in radians
     :return: x,y,z of vector in that direction
     """
     x = np.sin(zenith)*np.cos(azimuth)
