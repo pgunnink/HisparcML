@@ -135,7 +135,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     total_traces = np.reshape(np.sum(np.abs(traces), axis=2), [-1, N_stations * 4, 1])
     # take the log of a positive trace
     traces = np.log10(-1*traces+1)
-    total_traces = np.log10(-1*total_traces+1)
+    total_traces = np.log10(total_traces+1)
     # normalize the timings
     for i in pbar(range(timings.shape[0])):
         timings[i,:] = update_timings(timings[i,:])
