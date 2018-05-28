@@ -168,4 +168,3 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         rec_a_set = f.create_dataset('rec_a', data=rec_a)
         zenith_set = f.create_dataset('zenith', data=zenith)
         azimuth_set = f.create_dataset('azimuth', data=azimuth)
-        f.close()
