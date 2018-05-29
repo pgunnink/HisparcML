@@ -66,7 +66,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
         total_ignored = 0
         total = 0
-        for d in pbar(dirs):
+        #for d in pbar(dirs):
+        for d in dirs:
             try:
                 template = '%s/the_simulation.h5' % d
                 data = tables.open_file(template, 'r')

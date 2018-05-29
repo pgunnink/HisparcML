@@ -1,33 +1,36 @@
 import tables
 import h5py
 import numpy as np
-from sapphire.utils import pbar
+#from sapphire.utils import pbar
 from sapphire.analysis.find_mpv import FindMostProbableValueInSpectrum
 import pdb
 
 
-def update_timings(t):
+def update_timings(t, std):
     """
     Normalises data using the std and mean
-    (t* = (t-mean(all t))/std(all t))
+    (t* = (t-mean(this subset of t))/std(all t))
     :param t: ND Numpy array of arrival times
     :return: ND Numpy array of normalised arrival times, with 0 if the original
     arrival time was 0
     """
     t_temp = t[t != 0.]
-    std = np.ones(t.shape) * np.std(t_temp)
-    # it is possible that the standard deviation is 0 because both detectors got hit at
-    #  excactly the same time, then set the standard deviation to a very small value
-    if 0. in std:
-        std = np.ones(t.shape)*0.0001
-    avg = np.average(t_temp)
+    avg = np.mean(t_temp)
     t_new = (t - avg) / std
     t_new[t == 0.] = 0
     return t_new
 
-
+def update_all_timings(t):
+    idx = t != 0.
+    u = t[idx]
+    t -= np.mean(u,)
+    t /= np.std(u)
+    t[~idx] = 0.
+    return t
+    
+    
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
-                             find_mips=True, uniform_dist=False):
+                             find_mips=True, uniform_dist=False, filter_detectors=False):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
@@ -70,7 +73,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
         if uniform_dist:
             i = 0
-            for angle in pbar(available_zeniths):
+            #for angle in pbar(available_zeniths):
+            for angle in available_zeniths:
                 settings = {'zenith_upper_bound': np.radians(angle + 1),
                             'angle_lower_bound': np.radians(angle - 1)}
                 res = data.root.traces.Traces.read_where(
@@ -88,7 +92,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         else:
             # loop over all entries and fill them
             i = 0
-            for row in pbar(data.root.traces.Traces.iterrows(), entries):
+            #for row in pbar(data.root.traces.Traces.iterrows(), entries):
+            for row in data.root.traces.Traces.iterrows():
                 traces[i,:] = row['traces']
                 labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
                 timings[i,:] = row['timings']
@@ -106,6 +111,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         rec_z = rec_z[:i,]
         rec_a = rec_a[:i,]
 
+
+    
     if find_mips:
         # From this data determine the MiP peak
         # first create a pulseheight histogram
@@ -133,12 +140,29 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     traces = np.reshape(traces, [-1, N_stations * 4, 80, 1])
     # calculate total trace (aka the pulseintegral)
     total_traces = np.reshape(np.sum(np.abs(traces), axis=2), [-1, N_stations * 4, 1])
+    
+    
     # take the log of a positive trace
     traces = np.log10(-1*traces+1)
     total_traces = np.log10(total_traces+1)
+    total_traces -= np.mean(total_traces,axis=1)[:,np.newaxis]
+    total_traces /= np.std(total_traces)
+    
+    
     # normalize the timings
-    for i in pbar(range(timings.shape[0])):
-        timings[i,:] = update_timings(timings[i,:])
+    timings = np.reshape(timings, [-1, N_stations * 4, 1])
+    idx = timings != 0.
+    timings[~idx] = np.nan
+    timings -= np.nanmean(timings,axis=1)[:,np.newaxis]
+    timings /= np.nanstd(timings)
+    timings[~idx] = 0
+    
+    timings = np.reshape(timings, [-1,N_stations,4])
+    
+    #for i in pbar(range(timings.shape[0])):
+    #    timings[i,:] = update_timings(timings[i,:],std)
+    
+    
     # again reshape the timings
     timings = np.reshape(timings, [-1, N_stations * 4, 1])
     # concatenate the pulseintegrals and timings
