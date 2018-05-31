@@ -4,7 +4,7 @@ import tables
 import re
 import os
 from sapphire import HiSPARCStations
-from DegRad import azimuth_zenith_to_cartestian
+from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
 
 def merge(stations, output = None, orig_stations=None, directory='.', verbose=True):
     """
