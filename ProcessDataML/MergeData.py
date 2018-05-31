@@ -77,94 +77,91 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         for d in dirs:
             try:
                 template = '%s/the_simulation.h5' % d
-                data = tables.open_file(template, 'r')
-                # rec = ReconstructESDCoincidences(data, verbose=True, overwrite=True,
-                # progress=False)
-                # rec = ReconstructESDCoincidences(data, overwrite=True, progress=False)
-                # rec.direction = CoincidenceDirectionReconstructionDetectors(cluster)
-                # rec.reconstruct_and_store()
-                # recs = data.root.coincidences.reconstructions
-                if IGNORE_COINCIDENCES:
-                    for station in data.root.cluster_simulations:
-                        for station_event in station.events:
-                            trace = np.zeros([4, 80], dtype=np.float32)
-                            timings = np.zeros([4], dtype=np.float32)
-                            pulseheights = np.zeros([4], dtype=np.int16)
-                            trace[:, :] = station_event['traces']
-                            zenith = station_event['zenith']
-                            azimuth = station_event['azimuth']
-                            energy = station_event['shower_energy']
-                            timings_station = np.array(
-                                [station_event['t1'], station_event['t2'],
-                                 station_event['t3'], station_event['t4']])
-                            timings_station[timings_station < 0] = 0
-                            timings[:] = timings_station
-                            pulseheights[:] = station_event['pulseheights']
-                            row['traces'] = trace
-                            row['N'] = 1
-                            row['azimuth'] = azimuth
-                            row['zenith'] = zenith
-                            row['energy'] = energy
-                            row['timings'] = timings
-                            x, y, z = azimuth_zenith_to_cartestian(zenith, azimuth)
-                            row['x'] = x
-                            row['y'] = y
-                            row['z'] = z
-                            # row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
-                            # row['zenith_rec'] = recs.col('zenith')[coin['id']]
-                            row['pulseheights'] = pulseheights
-                            row['id'] = total
-                            row.append()
-                            total += 1
-                    data.close()
-                else:
-                    for coin in data.root.coincidences.coincidences:
-                        if coin['N'] >= 1:
-                            trace = np.zeros([len(STATIONS), 4, 80], dtype=np.float32)
-                            timings = np.zeros([len(STATIONS), 4], dtype=np.float32)
-                            pulseheights = np.zeros([len(STATIONS), 4], dtype=np.int16)
-                            c_index = data.root.coincidences.c_index[coin['id']]
-                            for station, event_idx in c_index:
-                                station_path = data.root.coincidences.s_index[station].decode(
-                                    'UTF-8')
-                                if re.search(combined_regex, station_path) is not None:
-                                    station_event = data.get_node(station_path, 'events')[
-                                        event_idx]
-                                    station = STATIONS.index(ORIG_STATIONS[station])
-                                    trace[station, :, :] = station_event['traces']
-                                    zenith = station_event['zenith']
-                                    azimuth = station_event['azimuth']
-                                    energy = station_event['shower_energy']
-                                    timings_station = np.array(
-                                        [station_event['t1'], station_event['t2'],
-                                         station_event['t3'], station_event['t4']])
-                                    timings_station[timings_station < 0] = 0
-                                    timings[station, :] = timings_station
-                                    pulseheights[station, :] = station_event['pulseheights']
-                            row['traces'] = trace
-                            row['N'] = coin['N']
-                            row['azimuth'] = azimuth
-                            row['zenith'] = zenith
-                            row['energy'] = energy
-                            row['timings'] = timings
-                            x, y, z = azimuth_zenith_to_cartestian(zenith, azimuth)
-                            row['x'] = x
-                            row['y'] = y
-                            row['z'] = z
-                            # row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
-                            # row['zenith_rec'] = recs.col('zenith')[coin['id']]
-                            row['pulseheights'] = pulseheights
-                            row['id'] = total
-                            row.append()
-                            total += 1
+                with tables.open_file(template, 'r') as data:
+                    # rec = ReconstructESDCoincidences(data, verbose=True, overwrite=True,
+                    # progress=False)
+                    # rec = ReconstructESDCoincidences(data, overwrite=True, progress=False)
+                    # rec.direction = CoincidenceDirectionReconstructionDetectors(cluster)
+                    # rec.reconstruct_and_store()
+                    # recs = data.root.coincidences.reconstructions
+                    if IGNORE_COINCIDENCES:
+                        for station in data.root.cluster_simulations:
+                            for station_event in station.events:
+                                trace = np.zeros([4, 80], dtype=np.float32)
+                                timings = np.zeros([4], dtype=np.float32)
+                                pulseheights = np.zeros([4], dtype=np.int16)
+                                trace[:, :] = station_event['traces']
+                                zenith = station_event['zenith']
+                                azimuth = station_event['azimuth']
+                                energy = station_event['shower_energy']
+                                timings_station = np.array(
+                                    [station_event['t1'], station_event['t2'],
+                                     station_event['t3'], station_event['t4']])
+                                timings_station[timings_station < 0] = 0
+                                timings[:] = timings_station
+                                pulseheights[:] = station_event['pulseheights']
+                                row['traces'] = trace
+                                row['N'] = 1
+                                row['azimuth'] = azimuth
+                                row['zenith'] = zenith
+                                row['energy'] = energy
+                                row['timings'] = timings
+                                x, y, z = azimuth_zenith_to_cartestian(zenith, azimuth)
+                                row['x'] = x
+                                row['y'] = y
+                                row['z'] = z
+                                # row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
+                                # row['zenith_rec'] = recs.col('zenith')[coin['id']]
+                                row['pulseheights'] = pulseheights
+                                row['id'] = total
+                                row.append()
+                                total += 1
+                        data.close()
+                    else:
+                        for coin in data.root.coincidences.coincidences:
+                            if coin['N'] >= 1:
+                                trace = np.zeros([len(STATIONS), 4, 80], dtype=np.float32)
+                                timings = np.zeros([len(STATIONS), 4], dtype=np.float32)
+                                pulseheights = np.zeros([len(STATIONS), 4], dtype=np.int16)
+                                c_index = data.root.coincidences.c_index[coin['id']]
+                                for station, event_idx in c_index:
+                                    station_path = data.root.coincidences.s_index[station].decode(
+                                        'UTF-8')
+                                    if re.search(combined_regex, station_path) is not None:
+                                        station_event = data.get_node(station_path, 'events')[
+                                            event_idx]
+                                        station = STATIONS.index(ORIG_STATIONS[station])
+                                        trace[station, :, :] = station_event['traces']
+                                        zenith = station_event['zenith']
+                                        azimuth = station_event['azimuth']
+                                        energy = station_event['shower_energy']
+                                        timings_station = np.array(
+                                            [station_event['t1'], station_event['t2'],
+                                             station_event['t3'], station_event['t4']])
+                                        timings_station[timings_station < 0] = 0
+                                        timings[station, :] = timings_station
+                                        pulseheights[station, :] = station_event['pulseheights']
+                                row['traces'] = trace
+                                row['N'] = coin['N']
+                                row['azimuth'] = azimuth
+                                row['zenith'] = zenith
+                                row['energy'] = energy
+                                row['timings'] = timings
+                                x, y, z = azimuth_zenith_to_cartestian(zenith, azimuth)
+                                row['x'] = x
+                                row['y'] = y
+                                row['z'] = z
+                                # row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
+                                # row['zenith_rec'] = recs.col('zenith')[coin['id']]
+                                row['pulseheights'] = pulseheights
+                                row['id'] = total
+                                row.append()
+                                total += 1
 
-                data.close()
-            except Exception as e:
+                except Exception as e:
                 if verbose:
                     print('Error occurred in %s' % (d))
                     print(e)
-                # pdb.set_trace()
-                data.close()
                 # os.system('rm -r %s' % d)
         table.flush()
         print('Total entries: %d' % (total))
