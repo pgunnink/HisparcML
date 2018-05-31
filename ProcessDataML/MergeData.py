@@ -158,7 +158,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 row.append()
                                 total += 1
 
-                except Exception as e:
+            except Exception as e:
                 if verbose:
                     print('Error occurred in %s' % (d))
                     print(e)
