@@ -5,6 +5,7 @@ import re
 import os
 from sapphire import HiSPARCStations
 from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
+from sapphire.analysis.reconstructions import ReconstructSimulatedEvents
 
 def merge(stations, output = None, orig_stations=None, directory='.', verbose=True):
     """
@@ -77,13 +78,12 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         for d in dirs:
             try:
                 template = '%s/the_simulation.h5' % d
-                with tables.open_file(template, 'r') as data:
-                    # rec = ReconstructESDCoincidences(data, verbose=True, overwrite=True,
-                    # progress=False)
-                    # rec = ReconstructESDCoincidences(data, overwrite=True, progress=False)
+                with tables.open_file(template, 'a') as data:
+                    rec = ReconstructSimulatedEvents(data, verbose=True, overwrite=False,
+                        progress=False)
                     # rec.direction = CoincidenceDirectionReconstructionDetectors(cluster)
-                    # rec.reconstruct_and_store()
-                    # recs = data.root.coincidences.reconstructions
+                    rec.reconstruct_and_store()
+                    recs = data.root.coincidences.reconstructions
                     if IGNORE_COINCIDENCES:
                         for station in data.root.cluster_simulations:
                             for station_event in station.events:
@@ -110,8 +110,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 row['x'] = x
                                 row['y'] = y
                                 row['z'] = z
-                                # row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
-                                # row['zenith_rec'] = recs.col('zenith')[coin['id']]
+                                row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
+                                row['zenith_rec'] = recs.col('zenith')[coin['id']]
                                 row['pulseheights'] = pulseheights
                                 row['id'] = total
                                 row.append()
@@ -151,8 +151,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 row['x'] = x
                                 row['y'] = y
                                 row['z'] = z
-                                # row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
-                                # row['zenith_rec'] = recs.col('zenith')[coin['id']]
+                                row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
+                                row['zenith_rec'] = recs.col('zenith')[coin['id']]
                                 row['pulseheights'] = pulseheights
                                 row['id'] = total
                                 row.append()

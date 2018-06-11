@@ -4,7 +4,9 @@ import numpy as np
 #from sapphire.utils import pbar
 from sapphire.analysis.find_mpv import FindMostProbableValueInSpectrum
 import pdb
-
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 def update_timings(t, std):
     """
@@ -30,7 +32,7 @@ def update_all_timings(t):
     
     
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
-                             find_mips=True, uniform_dist=False, filter_detectors=False):
+                             find_mips=True, uniform_dist=False, filter_detectors=False, no_gamma_peak=False):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
@@ -100,6 +102,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 rec_z[i] = row['zenith_rec']
                 rec_a[i] = row['azimuth_rec']
                 pulseheights[i] = row['pulseheights']
+                zenith[i] = row['zenith']
                 azimuth[i] = row['azimuth']
                 i += 1
 
@@ -114,15 +117,27 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
     
     if find_mips:
+
+
         # From this data determine the MiP peak
         # first create a pulseheight histogram
         pulseheights_flat = pulseheights.flatten()
         pulseheights_flat = pulseheights_flat.compress(np.abs(pulseheights_flat)>0)
-        h, bins = np.histogram(pulseheights_flat, bins=100)
-        # find the peak in this pulseheight histogram
+        h, bins, patches = plt.hist(pulseheights_flat, bins=100)
+        
         find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
-        mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
-                                        # second a boolean that is False if the search failed
+
+        # if there is no gamma peak than the first guess algorithm fails, so make our own guess
+        if no_gamma_peak:
+            mpv_guess = bins[h.argmax()]
+            try:
+                mpv = (find_m_p_v.fit_mpv(mpv_guess),True)
+            except:
+                mpv = (-999, False)
+        else:
+            # find the peak in this pulseheight histogram
+            mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
+                                            # second a boolean that is False if the search failed
 
         # ensure that the algorithm did not fail:
         if mpv[1]:
@@ -135,6 +150,9 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         mips = np.zeros(pulseheights.shape)
         for i in range(pulseheights.shape[0]):
             mips[i,:] = pulseheights[i,:]/mpv
+        plt.plot([mpv],[np.max(h)],'x')
+        plt.savefig('Pulseheights.png')
+        print('mpv %s' % mpv)
 
     # reshape traces such that for every coincidence we have N_stations*4 traces
     traces = np.reshape(traces, [-1, N_stations * 4, 80, 1])
@@ -155,7 +173,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     timings[~idx] = np.nan
     timings -= np.nanmean(timings,axis=1)[:,np.newaxis]
     timings /= np.nanstd(timings)
-    timings[~idx] = 0
+    timings[~idx] = 0.
     
     timings = np.reshape(timings, [-1,N_stations,4])
     
