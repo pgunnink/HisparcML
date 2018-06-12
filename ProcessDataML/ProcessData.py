@@ -32,7 +32,7 @@ def update_all_timings(t):
     
     
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
-                             find_mips=True, uniform_dist=False, filter_detectors=False, 
+                             find_mips=True, uniform_dist=False, 
                              no_gamma_peak=False, trigger=3, energy_low=9.9**16.5-1, 
                              energy_high=10.1**16.5):
     """
@@ -42,6 +42,10 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param N_stations: number of stations in h5 file
     :param find_mips: if True create pulseheight histogram and calculate MIPS from that (default: True)
     :param uniform_dist: if True force uniform distribution
+    :param no_gamma_peak: if using simulation data, which has no big first peak in the pulseheight histogram
+    :param trigger: the number of detectors that must have triggered
+    :energy_low: low energy cut
+    :energy_high: high energy cut
     :return: nothing
     """
 
