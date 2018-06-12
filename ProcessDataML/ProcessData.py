@@ -32,7 +32,8 @@ def update_all_timings(t):
     
     
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
-                             find_mips=True, uniform_dist=False, filter_detectors=False, no_gamma_peak=False):
+                             find_mips=True, uniform_dist=False, filter_detectors=False, 
+                             no_gamma_peak=False, trigger=3):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
@@ -82,29 +83,31 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 res = data.root.traces.Traces.read_where(
                     "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
                 for row in res[:min_val]:
-                    traces[i, :] = row['traces']
-                    labels[i, :] = np.array([[row['x'], row['y'], row['z']]])
-                    timings[i, :] = row['timings']
+                    if np.count_nonzero(row['timings']!=0.) >= trigger:
+                        traces[i, :] = row['traces']
+                        labels[i, :] = np.array([[row['x'], row['y'], row['z']]])
+                        timings[i, :] = row['timings']
+                        rec_z[i] = row['zenith_rec']
+                        rec_a[i] = row['azimuth_rec']
+                        pulseheights[i] = row['pulseheights']
+                        zenith[i] = row['zenith']
+                        azimuth[i] = row['azimuth']
+                        i += 1
+        else:
+            # loop over all entries and fill them
+            i = 0
+            #for row in pbar(data.root.traces.Traces.iterrows(), entries):
+            for row in data.root.traces.Traces.iterrows():
+                if np.count_nonzero(row['timings']!=0.) >= trigger:
+                    traces[i,:] = row['traces']
+                    labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
+                    timings[i,:] = row['timings']
                     rec_z[i] = row['zenith_rec']
                     rec_a[i] = row['azimuth_rec']
                     pulseheights[i] = row['pulseheights']
                     zenith[i] = row['zenith']
                     azimuth[i] = row['azimuth']
                     i += 1
-        else:
-            # loop over all entries and fill them
-            i = 0
-            #for row in pbar(data.root.traces.Traces.iterrows(), entries):
-            for row in data.root.traces.Traces.iterrows():
-                traces[i,:] = row['traces']
-                labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
-                timings[i,:] = row['timings']
-                rec_z[i] = row['zenith_rec']
-                rec_a[i] = row['azimuth_rec']
-                pulseheights[i] = row['pulseheights']
-                zenith[i] = row['zenith']
-                azimuth[i] = row['azimuth']
-                i += 1
 
         # remove part of the array that was not filled
         # ( in case some filter criterium was used )
