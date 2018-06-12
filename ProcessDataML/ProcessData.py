@@ -5,7 +5,15 @@ import numpy as np
 from sapphire.analysis.find_mpv import FindMostProbableValueInSpectrum
 import pdb
 import matplotlib
-matplotlib.use('Agg')
+try:
+    cfg = get_ipython().config 
+    if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+        pass
+    else:
+        matplotlib.use('Agg')
+except NameError:
+    matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 
 def update_timings(t, std):
