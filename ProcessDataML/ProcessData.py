@@ -70,7 +70,6 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             if verbose:
                 print({k:v for k, v in zip(available_zeniths,events)})
             min_val = np.amin(events)*max_samples
-            entries = min_val*len(available_zeniths)
             filled = np.zeros(17)
         else:            
             min_val = entries
