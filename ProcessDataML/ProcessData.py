@@ -33,7 +33,8 @@ def update_all_timings(t):
     
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, filter_detectors=False, 
-                             no_gamma_peak=False, trigger=3):
+                             no_gamma_peak=False, trigger=3, energy_low=9.9**16.5-1, 
+                             energy_high=10.1**16.5):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
@@ -48,7 +49,18 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     # detectors each
     with tables.open_file(file_location, 'r') as data:
         entries = len(data.root.traces.Traces) # count number of samples
-
+        
+        # create empty arrays
+        traces = np.empty([entries,N_stations,4,80])
+        labels = np.empty([entries,3])
+        timings = np.empty([entries,N_stations,4])
+        pulseheights = np.empty([entries, N_stations, 4])
+        rec_z = np.empty([entries])
+        rec_a = np.empty([entries])
+        zenith = np.empty([entries])
+        azimuth = np.empty([entries])
+        energy = np.empty([entries])
+        
         # create an uniform distribution by looking at what zenith angle has the lowest
         #  number of events and using only that amount of angles
         if uniform_dist:
@@ -64,53 +76,31 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             print({k:v for k, v in zip(available_zeniths,events)})
             min_val = np.amin(events)
             entries = min_val*len(available_zeniths)
-        # create empty arrays
-        traces = np.empty([entries,N_stations,4,80])
-        labels = np.empty([entries,3])
-        timings = np.empty([entries,N_stations,4])
-        pulseheights = np.empty([entries, N_stations, 4])
-        rec_z = np.empty([entries])
-        rec_a = np.empty([entries])
-        zenith = np.empty([entries])
-        azimuth = np.empty([entries])
-
-        if uniform_dist:
-            i = 0
-            #for angle in pbar(available_zeniths):
-            for angle in available_zeniths:
-                settings = {'zenith_upper_bound': np.radians(angle + 1),
-                            'angle_lower_bound': np.radians(angle - 1)}
-                res = data.root.traces.Traces.read_where(
-                    "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
-                for row in res[:min_val]:
-                    if np.count_nonzero(row['timings']!=0.) >= trigger:
-                        traces[i, :] = row['traces']
-                        labels[i, :] = np.array([[row['x'], row['y'], row['z']]])
-                        timings[i, :] = row['timings']
+            filled = np.zeros(17)
+        else:            
+            min_val = entries
+            
+        # loop over all entries and fill them
+        i = 0
+        for row in data.root.traces.Traces.iterrows():
+            if np.count_nonzero(row['timings']!=0.) >= trigger:
+                if row['energy']>=energy_low and row['energy']<=energy_high:
+                    idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
+                    if filled[idx]<min_val:
+                        traces[i,:] = row['traces']
+                        labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
+                        timings[i,:] = row['timings']
                         rec_z[i] = row['zenith_rec']
                         rec_a[i] = row['azimuth_rec']
                         pulseheights[i] = row['pulseheights']
                         zenith[i] = row['zenith']
                         azimuth[i] = row['azimuth']
+                        filled[idx] += 1
                         i += 1
-        else:
-            # loop over all entries and fill them
-            i = 0
-            #for row in pbar(data.root.traces.Traces.iterrows(), entries):
-            for row in data.root.traces.Traces.iterrows():
-                if np.count_nonzero(row['timings']!=0.) >= trigger:
-                    traces[i,:] = row['traces']
-                    labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
-                    timings[i,:] = row['timings']
-                    rec_z[i] = row['zenith_rec']
-                    rec_a[i] = row['azimuth_rec']
-                    pulseheights[i] = row['pulseheights']
-                    zenith[i] = row['zenith']
-                    azimuth[i] = row['azimuth']
-                    i += 1
-
+    
+        
+        print('Out of %.2d items %.2d remained' % (entries, i))
         # remove part of the array that was not filled
-        # ( in case some filter criterium was used )
         traces = traces[:i,]
         labels = labels[:i,]
         timings = timings[:i,]
