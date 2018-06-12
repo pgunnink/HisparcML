@@ -7,7 +7,7 @@ import pdb
 import matplotlib
 try:
     cfg = get_ipython().config 
-    if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+    if cfg['IPKernelApp']['kernel_class'] == 'google.colab._kernel.Kernel':
         pass
     else:
         matplotlib.use('Agg')
@@ -16,33 +16,14 @@ except NameError:
 
 import matplotlib.pyplot as plt
 
-def update_timings(t, std):
-    """
-    Normalises data using the std and mean
-    (t* = (t-mean(this subset of t))/std(all t))
-    :param t: ND Numpy array of arrival times
-    :return: ND Numpy array of normalised arrival times, with 0 if the original
-    arrival time was 0
-    """
-    t_temp = t[t != 0.]
-    avg = np.mean(t_temp)
-    t_new = (t - avg) / std
-    t_new[t == 0.] = 0
-    return t_new
 
-def update_all_timings(t):
-    idx = t != 0.
-    u = t[idx]
-    t -= np.mean(u,)
-    t /= np.std(u)
-    t[~idx] = 0.
-    return t
     
     
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, 
-                             no_gamma_peak=False, trigger=3, energy_low=9.9**16.5-1, 
-                             energy_high=10.1**16.5):
+                             no_gamma_peak=False, trigger=3, energy_low=9.9**16.5, 
+                             energy_high=10.1**16.5, verbose=True,
+                             max_samples=1):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
@@ -52,8 +33,9 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param uniform_dist: if True force uniform distribution
     :param no_gamma_peak: if using simulation data, which has no big first peak in the pulseheight histogram
     :param trigger: the number of detectors that must have triggered
-    :energy_low: low energy cut
-    :energy_high: high energy cut
+    :param energy_low: low energy cut
+    :param energy_high: high energy cut
+    :param max_samples: ratio of the number of samples to cut (use only with uniform_dist=True)
     :return: nothing
     """
 
@@ -85,8 +67,9 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
                 events.append(len(res))
             events = np.array(events)
-            print({k:v for k, v in zip(available_zeniths,events)})
-            min_val = np.amin(events)
+            if verbose:
+                print({k:v for k, v in zip(available_zeniths,events)})
+            min_val = np.amin(events)*max_samples
             entries = min_val*len(available_zeniths)
             filled = np.zeros(17)
         else:            
@@ -110,8 +93,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         filled[idx] += 1
                         i += 1
     
-        
-        print('Out of %.2d items %.2d remained' % (entries, i))
+        if verbose:
+            print('Out of %.2d items %.2d remained' % (entries, i))
         # remove part of the array that was not filled
         traces = traces[:i,]
         labels = labels[:i,]
@@ -128,7 +111,10 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         # first create a pulseheight histogram
         pulseheights_flat = pulseheights.flatten()
         pulseheights_flat = pulseheights_flat.compress(np.abs(pulseheights_flat)>0)
-        h, bins, patches = plt.hist(pulseheights_flat, bins=100)
+        if verbose:
+            h, bins, patches = plt.hist(pulseheights_flat, bins=100)
+        else:
+            h, bins, patches = np.hist(pulseheights_flat, bins=100)
         
         find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
 
@@ -155,9 +141,10 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         mips = np.zeros(pulseheights.shape)
         for i in range(pulseheights.shape[0]):
             mips[i,:] = pulseheights[i,:]/mpv
-        plt.plot([mpv],[np.max(h)],'x')
-        plt.savefig('Pulseheights.png')
-        print('mpv %s' % mpv)
+        if verbose:
+            plt.plot([mpv],[np.max(h)],'x')
+            plt.savefig('Pulseheights.png')
+            print('mpv %s' % mpv)
 
     # reshape traces such that for every coincidence we have N_stations*4 traces
     traces = np.reshape(traces, [-1, N_stations * 4, 80, 1])
@@ -182,8 +169,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     
     timings = np.reshape(timings, [-1,N_stations,4])
     
-    #for i in pbar(range(timings.shape[0])):
-    #    timings[i,:] = update_timings(timings[i,:],std)
+    
     
     
     # again reshape the timings
