@@ -55,10 +55,10 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         azimuth = np.empty([entries])
         energy = np.empty([entries])
         
+        available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
         # create an uniform distribution by looking at what zenith angle has the lowest
         #  number of events and using only that amount of angles
         if uniform_dist:
-            available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
             events = []
             for angle in available_zeniths:
                 settings = {'zenith_upper_bound': np.radians(angle + 1),
