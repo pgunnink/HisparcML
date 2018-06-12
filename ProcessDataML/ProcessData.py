@@ -56,6 +56,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
         energy = np.empty([entries])
         
         available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
+        filled = np.zeros(17)
         # create an uniform distribution by looking at what zenith angle has the lowest
         #  number of events and using only that amount of angles
         if uniform_dist:
@@ -70,7 +71,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             if verbose:
                 print({k:v for k, v in zip(available_zeniths,events)})
             min_val = np.amin(events)*max_samples
-            filled = np.zeros(17)
+            
         else:            
             min_val = entries
             
