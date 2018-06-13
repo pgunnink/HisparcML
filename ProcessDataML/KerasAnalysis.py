@@ -3,7 +3,9 @@ from keras.layers import Conv2D, Input, Reshape, concatenate, Conv1D, Flatten, \
     BatchNormalization, LocallyConnected2D, MaxPooling2D, GlobalAveragePooling2D, \
     GlobalMaxPooling2D
 from .CustomMetrics import metric_degrees_difference
-
+from keras.models import Model
+from keras.optimizers import Adam, SGD, Adamax, Nadam, RMSprop, Adadelta
+from keras.callbacks import TensorBoard,ReduceLROnPlateau,EarlyStopping
 
 def baseModel(N_stations, features, length_trace=80, trace_filter_1=64,
               trace_filter_2=32,
