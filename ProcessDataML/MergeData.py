@@ -7,7 +7,8 @@ from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
 from sapphire.analysis.reconstructions import ReconstructSimulatedEvents
 import pdb
 
-def merge(stations, output = None, orig_stations=None, directory='.', verbose=True):
+def merge(stations, output = None, orig_stations=None, directory='.', verbose=True,
+          overwrite=False):
     """
     Merges the simulation data from individual 'the_simulation.h5' files from the
     core.* directories inside a certain directory
@@ -83,8 +84,9 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                     if IGNORE_COINCIDENCES: # only possible if there is 1 station (for now)
                         station_path = '/cluster_simulations/station_%s/' % STATIONS[0]
                         station = STATIONS[0]
-                        rec = ReconstructSimulatedEvents(data, station_path, station, verbose=False, overwrite=True,
-                            progress=False)
+                        rec = ReconstructSimulatedEvents(data, station_path, station,
+                                                         verbose=False, overwrite=overwrite,
+                                                         progress=False)
                         # rec.direction = CoincidenceDirectionReconstructionDetectors(cluster)
                         rec.reconstruct_and_store()
                         recs = data.get_node(station_path).reconstructions

@@ -38,6 +38,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param energy_low: low energy cut
     :param energy_high: high energy cut
     :param max_samples: ratio of the number of samples to cut (use only with uniform_dist=True)
+    :param CHUNK_SIZE: size of individual CHUNKS that are writte together to disk
     :return: nothing
     """
     start_time = timeit.default_timer()
