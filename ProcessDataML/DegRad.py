@@ -38,6 +38,8 @@ def cartestian_to_azimuth_zenith(x,y,z):
     return zenith,azimuth
 
 
+
+
 def angle_between_two_vectors(y1, y2):
     """
     Calculate the angle in degrees between two vectors
@@ -45,10 +47,12 @@ def angle_between_two_vectors(y1, y2):
     :param y2: 3D vector with (?,3) dimensions
     :return: angle in degrees
     """
-    inproduct = np.sum(np.multiply(y1, y2), axis=1)
-    norm12 = np.multiply(np.linalg.norm(y1, axis=1,keepdims=True),np.linalg.norm(y2, axis=1, keepdims=True))
-    angle = np.arccos(np.divide(inproduct, norm12))
-    return rad2deg(angle)
-
-
+    inproduct = np.sum(np.multiply(y1, y2), axis=1, keepdims=True)
+    norm = np.multiply(np.linalg.norm(y1, axis=1,
+                                                keepdims=True),np.linalg.norm(y2, axis=1, keepdims=True))
+    div = np.divide(inproduct, norm)
+    div[np.abs(div)>1] = 1
+    angle = np.arccos(div)
+    angle =  np.reshape(angle,(-1))
+    return np.degrees(angle)
 
