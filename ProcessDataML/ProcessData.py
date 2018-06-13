@@ -109,6 +109,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             i = 0
             i_chunk = 0
             chunk_count = 0
+
             for row in data.root.traces.Traces.iterrows():
                 if np.count_nonzero(row['timings']!=0.) >= trigger:
                     if row['energy']>=energy_low and row['energy']<=energy_high:
@@ -253,13 +254,3 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             if verbose:
                 print('Shuffling everything %s'% (timeit.default_timer() - start_time))
 
-N_stations = 1
-RAW_INPUT = 'main_data_[501].h5'
-DATA_FILE = 'driehoek.h5'
-ENERGY_LOW = 0
-ENERGY_HIGH = 11**17
-read_sapphire_simulation(RAW_INPUT, DATA_FILE, N_stations,
-                             find_mips=True, uniform_dist=False,
-                             no_gamma_peak=True, trigger=3, energy_low=ENERGY_LOW,
-                             energy_high=ENERGY_HIGH, verbose=True,
-                             max_samples=1, CHUNK_SIZE=10**5)
