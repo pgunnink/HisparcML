@@ -1,5 +1,4 @@
 import numpy as np
-from sapphire.utils import pbar
 import tables
 import re
 import os
@@ -64,6 +63,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         z = tables.Float32Col()
         azimuth_rec = tables.Float32Col()
         zenith_rec = tables.Float32Col()
+        core_distance = tables.Float32Col(shape=(len(STATIONS)))
 
 
     with tables.open_file(output_file, mode='w',
@@ -98,6 +98,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 zenith = station_event['zenith']
                                 azimuth = station_event['azimuth']
                                 energy = station_event['shower_energy']
+                                distance_core = station_event['core_distance']
                                 timings_station = np.array(
                                     [station_event['t1'], station_event['t2'],
                                      station_event['t3'], station_event['t4']])
@@ -117,6 +118,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 row['azimuth_rec'] = recs.col('azimuth')[station_event['event_id']]
                                 row['zenith_rec'] = recs.col('zenith')[station_event['event_id']]
                                 row['pulseheights'] = pulseheights
+                                row['core_distance'] = distance_core
                                 row['id'] = total
                                 row.append()
                                 total += 1
@@ -127,6 +129,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 trace = np.zeros([len(STATIONS), 4, 80], dtype=np.float32)
                                 timings = np.zeros([len(STATIONS), 4], dtype=np.float32)
                                 pulseheights = np.zeros([len(STATIONS), 4], dtype=np.int16)
+                                core_distance = np.zeros((len(STATIONS),),
+                                                         dtype=np.float32)
                                 c_index = data.root.coincidences.c_index[coin['id']]
                                 for station, event_idx in c_index:
                                     station_path = data.root.coincidences.s_index[station].decode(
@@ -145,6 +149,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         timings_station[timings_station < 0] = 0
                                         timings[station, :] = timings_station
                                         pulseheights[station, :] = station_event['pulseheights']
+                                        core_distance[station] = station_event['core_distance']
                                 row['traces'] = trace
                                 row['N'] = coin['N']
                                 row['azimuth'] = azimuth

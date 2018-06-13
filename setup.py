@@ -2,5 +2,7 @@ from setuptools import setup, find_packages
 setup(
     name="ProcessDataML",
     version="0.1",
-    packages=find_packages(),
+    install_requires=['tables', 'h5py', 'sapphire', 'matplotlib', 'fast_histogram',
+              'numpy'],
+    packages=find_packages()
 )

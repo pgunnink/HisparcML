@@ -1,10 +1,12 @@
 import tables
 import h5py
 import numpy as np
-#from sapphire.utils import pbar
 from sapphire.analysis.find_mpv import FindMostProbableValueInSpectrum
 import pdb
 import matplotlib
+from fast_histogram import histogram1d
+import timeit
+
 try:
     cfg = get_ipython().config 
     if cfg['IPKernelApp']['kernel_class'] == 'google.colab._kernel.Kernel':
@@ -23,7 +25,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, 
                              no_gamma_peak=False, trigger=3, energy_low=9.9**16.5, 
                              energy_high=10.1**16.5, verbose=True,
-                             max_samples=1):
+                             max_samples=1, CHUNK_SIZE=10**4):
     """
     read a h5 file made by merge.py from all individual simulation files
     :param file_location: location of h5 file made by merge.py
@@ -38,166 +40,226 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param max_samples: ratio of the number of samples to cut (use only with uniform_dist=True)
     :return: nothing
     """
-
+    start_time = timeit.default_timer()
     # Open .h5 file, assuming N_stations stations are in this file, with 4
     # detectors each
     with tables.open_file(file_location, 'r') as data:
         entries = len(data.root.traces.Traces) # count number of samples
-        
-        # create empty arrays
-        traces = np.empty([entries,N_stations,4,80])
-        labels = np.empty([entries,3])
-        timings = np.empty([entries,N_stations,4])
-        pulseheights = np.empty([entries, N_stations, 4])
-        rec_z = np.empty([entries])
-        rec_a = np.empty([entries])
-        zenith = np.empty([entries])
-        azimuth = np.empty([entries])
-        energy = np.empty([entries])
-        
-        available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
-        filled = np.zeros(17)
-        # create an uniform distribution by looking at what zenith angle has the lowest
-        #  number of events and using only that amount of angles
-        if uniform_dist:
-            events = []
-            for angle in available_zeniths:
-                settings = {'zenith_upper_bound': np.radians(angle + 1),
-                            'angle_lower_bound': np.radians(angle - 1)}
-                res = data.root.traces.Traces.read_where(
-                    "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
-                events.append(len(res))
-            events = np.array(events)
+        with h5py.File(new_file_location, 'w') as f:
+            # create the h5py dataset files
+            traces = f.create_dataset('traces', shape=(entries, N_stations*4, 80),
+                                      chunks=(CHUNK_SIZE, N_stations*4, 80),
+                                      dtype='float32')
+            labels = f.create_dataset('labels', shape=(entries, 3),
+                                      chunks=(CHUNK_SIZE,3), dtype='float32')
+            input_features = f.create_dataset('input_features', shape=(entries,N_stations*4, 2),
+                                       chunks=(CHUNK_SIZE, N_stations*4, 2),
+                                       dtype='float32')
+            pulseheights = f.create_dataset('pulseheights',
+                                            shape=(entries, N_stations*4),
+                                            chunks=(CHUNK_SIZE,N_stations*4),
+                                            dtype='int32')
+            rec_z = f.create_dataset('rec_z', shape=(entries,), chunks=(CHUNK_SIZE,),
+                                     dtype='float32')
+            rec_a = f.create_dataset('rec_a', shape=(entries,), chunks=(CHUNK_SIZE,),
+                                     dtype='float32')
+            zenith = f.create_dataset('zenith', shape=(entries,), chunks=(CHUNK_SIZE,),
+                                     dtype='float32')
+            azimuth = f.create_dataset('azimuth', shape=(entries,), chunks=(CHUNK_SIZE,),
+                                     dtype='float32')
+            energy = f.create_dataset('energies', shape=(entries,), chunks=(CHUNK_SIZE,),
+                                     dtype='float32')
+
+            available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
+            filled = np.zeros(17)
+            # create an uniform distribution by looking at what zenith angle has the lowest
+            #  number of events and using only that amount of angles
+            if uniform_dist:
+                events = []
+                for angle in available_zeniths:
+                    settings = {'zenith_upper_bound': np.radians(angle + 1),
+                                'angle_lower_bound': np.radians(angle - 1)}
+                    res = data.root.traces.Traces.read_where(
+                        "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
+                    events.append(len(res))
+                events = np.array(events)
+                if verbose:
+                    print({k:v for k, v in zip(available_zeniths,events)})
+                min_val = np.amin(events)*max_samples
+                total_entries_max = entries
+            else:
+                min_val = entries
+                total_entries_max = entries*max_samples
             if verbose:
-                print({k:v for k, v in zip(available_zeniths,events)})
-            min_val = np.amin(events)*max_samples
-            
-        else:            
-            min_val = entries
-            
-        # loop over all entries and fill them
-        i = 0
-        for row in data.root.traces.Traces.iterrows():
-            if np.count_nonzero(row['timings']!=0.) >= trigger:
-                if row['energy']>=energy_low and row['energy']<=energy_high:
-                    idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
-                    if filled[idx]<min_val:
-                        traces[i,:] = row['traces']
-                        labels[i,:] = np.array([[row['x'],row['y'],row['z']]])
-                        timings[i,:] = row['timings']
-                        rec_z[i] = row['zenith_rec']
-                        rec_a[i] = row['azimuth_rec']
-                        pulseheights[i] = row['pulseheights']
-                        zenith[i] = row['zenith']
-                        azimuth[i] = row['azimuth']
-                        filled[idx] += 1
-                        i += 1
-    
-        if verbose:
-            print('Out of %.2d items %.2d remained' % (entries, i))
-        # remove part of the array that was not filled
-        traces = traces[:i,]
-        labels = labels[:i,]
-        timings = timings[:i,]
-        rec_z = rec_z[:i,]
-        rec_a = rec_a[:i,]
+                print('Maximum number of entries: %s' % total_entries_max)
+
+            # create temporary chunk sizes that can then be written to the h5 file
+            traces_temp = np.empty([CHUNK_SIZE, N_stations*4, 80])
+            labels_temp = np.empty([CHUNK_SIZE, 3])
+            timings_temp = np.empty([CHUNK_SIZE, N_stations*4])
+            pulseheights_temp = np.empty([CHUNK_SIZE, N_stations*4])
+            rec_z_temp = np.empty([CHUNK_SIZE])
+            rec_a_temp = np.empty([CHUNK_SIZE])
+            zenith_temp = np.empty([CHUNK_SIZE])
+            azimuth_temp = np.empty([CHUNK_SIZE])
+            energy_temp = np.empty([CHUNK_SIZE])
 
 
-    
-    if find_mips:
+            # loop over all entries and fill them
+            i = 0
+            i_chunk = 0
+            chunk_count = 0
+            for row in data.root.traces.Traces.iterrows():
+                if np.count_nonzero(row['timings']!=0.) >= trigger:
+                    if row['energy']>=energy_low and row['energy']<=energy_high:
+                        idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
+                        if filled[idx]<min_val and i<total_entries_max:
+                            t = row['traces'].reshape((4*N_stations,80))
+                            t = np.log10(-1 * t + 1)
+                            traces_temp[i_chunk,:] = t
+                            labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
+                            timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
+                            rec_z_temp[i_chunk] = row['zenith_rec']
+                            rec_a_temp[i_chunk] = row['azimuth_rec']
+                            pulseheights_temp[i_chunk] = row['pulseheights'].reshape((4*N_stations,))
+                            zenith_temp[i_chunk] = row['zenith']
+                            azimuth_temp[i_chunk] = row['azimuth']
+                            energy_temp[i_chunk] = row['energy']
+                            i_chunk += 1
+                            i += 1
+                            if i_chunk==CHUNK_SIZE:
+                                chunk_count += 1
+                                if verbose:
+                                    print('Writing chunk %s' % chunk_count)
+                                i_chunk = 0
+                                traces[i-CHUNK_SIZE:i,] = traces_temp
+                                labels[i-CHUNK_SIZE:i,] = labels_temp
+                                input_features[i - CHUNK_SIZE:i,:,0] = timings_temp
+                                rec_z[i - CHUNK_SIZE:i] = rec_z_temp
+                                rec_a[i - CHUNK_SIZE:i] = rec_a_temp
+                                pulseheights[i - CHUNK_SIZE:i,] = pulseheights_temp
+                                zenith[i - CHUNK_SIZE:i] = zenith_temp
+                                azimuth[i - CHUNK_SIZE:i] = azimuth_temp
+                                energy[i - CHUNK_SIZE:i] = energy_temp
+                            filled[idx] += 1
+                        elif i>total_entries_max:
+                            break
+            if i_chunk>0:
+                traces[i - i_chunk:i,] = traces_temp[:i_chunk,]
+                labels[i - i_chunk:i,] = labels_temp[:i_chunk,]
+                input_features[i - i_chunk:i,:,0] = timings_temp[:i_chunk,]
+                rec_z[i - i_chunk:i] = rec_z_temp[:i_chunk,]
+                rec_a[i - i_chunk:i] = rec_a_temp[:i_chunk,]
+                pulseheights[i - i_chunk:i,] = pulseheights_temp[:i_chunk,]
+                zenith[i - i_chunk:i] = zenith_temp[:i_chunk,]
+                azimuth[i - i_chunk:i] = azimuth_temp[:i_chunk,]
+                energy[i - i_chunk:i] = energy[:i_chunk,]
+            if verbose:
+                print('Filling datasets %s'% (timeit.default_timer() - start_time))
+            if verbose:
+                print('Out of %.2d items %.2d remained' % (entries, i))
+            # remove part of the array that was not filled
+            traces.resize(i,axis=0)
+            labels.resize(i,axis=0)
+            input_features.resize(i,axis=0)
+            rec_z.resize(i,axis=0)
+            rec_a.resize(i,axis=0)
+            pulseheights.resize(i,axis=0)
+            zenith.resize(i,axis=0)
+            azimuth.resize(i,axis=0)
+            energy.resize(i, axis=0)
+            new_entries = i
+            if find_mips:
+                # From this data determine the MiP peak
+                # first create a pulseheight histogram
+                pulseheights_flat = pulseheights[:].flatten()
+                pulseheights_flat = pulseheights_flat.compress(np.abs(pulseheights_flat)>0)
+                r = [0,np.max(pulseheights_flat)]
+                number_of_bins = 100
+                bins = np.linspace(r[0],r[1],number_of_bins)
+                h = histogram1d(pulseheights_flat, range=r, bins= number_of_bins)
 
+                del pulseheights_flat # clear some memory
+                find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
 
-        # From this data determine the MiP peak
-        # first create a pulseheight histogram
-        pulseheights_flat = pulseheights.flatten()
-        pulseheights_flat = pulseheights_flat.compress(np.abs(pulseheights_flat)>0)
-        if verbose:
-            h, bins, patches = plt.hist(pulseheights_flat, bins=100)
-        else:
-            h, bins, patches = np.hist(pulseheights_flat, bins=100)
-        
-        find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
+                # if there is no gamma peak than the first guess algorithm fails, so make our own guess
+                if no_gamma_peak:
+                    mpv_guess = bins[h.argmax()]
+                    try:
+                        mpv = (find_m_p_v.fit_mpv(mpv_guess),True)
+                    except:
+                        mpv = (-999, False)
+                else:
+                    # find the peak in this pulseheight histogram
+                    mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
+                                                    # second a boolean that is False if the search failed
 
-        # if there is no gamma peak than the first guess algorithm fails, so make our own guess
-        if no_gamma_peak:
-            mpv_guess = bins[h.argmax()]
-            try:
-                mpv = (find_m_p_v.fit_mpv(mpv_guess),True)
-            except:
-                mpv = (-999, False)
-        else:
-            # find the peak in this pulseheight histogram
-            mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
-                                            # second a boolean that is False if the search failed
+                # ensure that the algorithm did not fail:
+                if mpv[1]:
+                    mpv = mpv[0]
+                else:
+                    raise AssertionError('No MPV found!')
+                # calculate number of mips per trace
+                mips = f.create_dataset('mips', shape=(len(traces), N_stations*4),
+                                            chunks=(CHUNK_SIZE,N_stations*4),
+                                            dtype='float64')
+                for i in range(int(np.floor(new_entries/CHUNK_SIZE))):
+                    pulseheights_temp = pulseheights[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:]
+                    mips[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:] = pulseheights_temp / mpv
+                else:
+                    remaining = new_entries % CHUNK_SIZE
+                    pulseheights_temp = pulseheights[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:]
+                    mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp / mpv
+                if verbose:
+                    plt.bar(bins, h, width=(bins[1]-bins[0]))
+                    plt.plot([mpv],[np.max(h)],'x')
+                    plt.savefig('Pulseheights.png')
+                    print('mpv %s' % mpv)
+            if verbose:
+                print('Finding MiP %s'% (timeit.default_timer() - start_time))
+            # reshape traces such that for every coincidence we have N_stations*4 traces
+            # calculate total trace (aka the pulseintegral)
 
-        # ensure that the algorithm did not fail:
-        if mpv[1]:
-            mpv = mpv[0]
-        else:
-            raise AssertionError('No MPV found!')
+            total_traces = np.reshape(np.sum(np.abs(traces), axis=2), [-1, N_stations * 4])
+            total_traces = np.log10(total_traces + 1)
+            total_traces -= np.mean(total_traces, axis=1)[:, np.newaxis]
+            total_traces /= np.std(total_traces)
+            if verbose:
+                print('Creating total_traces %s'% (timeit.default_timer() - start_time))
 
-        # calculate number of mips per trace
-        pulseheights = np.reshape(pulseheights, [-1, N_stations * 4, 1])
-        mips = np.zeros(pulseheights.shape)
-        for i in range(pulseheights.shape[0]):
-            mips[i,:] = pulseheights[i,:]/mpv
-        if verbose:
-            plt.plot([mpv],[np.max(h)],'x')
-            plt.savefig('Pulseheights.png')
-            print('mpv %s' % mpv)
+            # normalize the timings
+            timings = input_features[:,:,0]
+            idx = timings != 0.
+            timings[~idx] = np.nan
+            timings -= np.nanmean(timings,axis=1)[:,np.newaxis]
+            timings /= np.nanstd(timings)
+            timings[~idx] = 0.
+            if verbose:
+                print('Normalizing input_features %s'% (timeit.default_timer() - start_time))
 
-    # reshape traces such that for every coincidence we have N_stations*4 traces
-    traces = np.reshape(traces, [-1, N_stations * 4, 80, 1])
-    # calculate total trace (aka the pulseintegral)
-    total_traces = np.reshape(np.sum(np.abs(traces), axis=2), [-1, N_stations * 4, 1])
-    
-    
-    # take the log of a positive trace
-    traces = np.log10(-1*traces+1)
-    total_traces = np.log10(total_traces+1)
-    total_traces -= np.mean(total_traces,axis=1)[:,np.newaxis]
-    total_traces /= np.std(total_traces)
-    
-    
-    # normalize the timings
-    timings = np.reshape(timings, [-1, N_stations * 4, 1])
-    idx = timings != 0.
-    timings[~idx] = np.nan
-    timings -= np.nanmean(timings,axis=1)[:,np.newaxis]
-    timings /= np.nanstd(timings)
-    timings[~idx] = 0.
-    
-    timings = np.reshape(timings, [-1,N_stations,4])
-    
-    
-    
-    
-    # again reshape the timings
-    timings = np.reshape(timings, [-1, N_stations * 4, 1])
-    # concatenate the pulseintegrals and timings
-    input_features = np.concatenate((total_traces,timings),axis=2)
+            input_features[:,:,:] = np.stack((timings,total_traces),axis=2)
+            # shuffle everything
+            permutation = np.random.permutation(new_entries)
+            traces[:] = traces[:][permutation,:]
+            labels[:] = labels[:][permutation,:]
+            input_features[:] = input_features[:][permutation,:]
+            if find_mips:
+                mips[:] = mips[:][permutation,]
+            rec_z[:] = rec_z[:][permutation]
+            rec_a[:] = rec_a[:][permutation]
+            zenith[:] = zenith[:][permutation]
+            azimuth[:] = azimuth[:][permutation]
+            energy[:] = energy[:][permutation]
+            if verbose:
+                print('Shuffling everything %s'% (timeit.default_timer() - start_time))
 
-
-    # shuffle everything
-    permutation = np.random.permutation(traces.shape[0])
-    traces = traces[permutation,:]
-    labels = labels[permutation,:]
-    input_features = input_features[permutation,:]
-    if find_mips:
-        mips = mips[permutation,:]
-    rec_z = rec_z[permutation]
-    rec_a = rec_a[permutation]
-    zenith = zenith[permutation]
-    azimuth = azimuth[permutation]
-
-    # Save everything into a h5 file
-    with h5py.File(new_file_location, 'w') as f:
-        traces_set = f.create_dataset('traces',data=traces)
-        labels_set = f.create_dataset('labels', data=labels)
-        input_features_set = f.create_dataset('input_features',data=input_features)
-        if find_mips:
-            mips_set = f.create_dataset('mips',data=mips)
-        rec_z_set = f.create_dataset('rec_z', data=rec_z)
-        rec_a_set = f.create_dataset('rec_a', data=rec_a)
-        zenith_set = f.create_dataset('zenith', data=zenith)
-        azimuth_set = f.create_dataset('azimuth', data=azimuth)
+N_stations = 1
+RAW_INPUT = 'main_data_[501].h5'
+DATA_FILE = 'driehoek.h5'
+ENERGY_LOW = 0
+ENERGY_HIGH = 11**17
+read_sapphire_simulation(RAW_INPUT, DATA_FILE, N_stations,
+                             find_mips=True, uniform_dist=False,
+                             no_gamma_peak=True, trigger=3, energy_low=ENERGY_LOW,
+                             energy_high=ENERGY_HIGH, verbose=True,
+                             max_samples=1, CHUNK_SIZE=10**5)
