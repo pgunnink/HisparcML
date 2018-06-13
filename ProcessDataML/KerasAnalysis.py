@@ -15,8 +15,9 @@ def baseModel(N_stations, features, length_trace=80, trace_filter_1=64,
     The basic model as described by https://arxiv.org/pdf/1708.00647.pdf, but flattened
     out
     '''
-    input_traces = Input(shape=(N_stations * 4, length_trace, 1), dtype='float32',
+    input_traces = Input(shape=(N_stations * 4, length_trace), dtype='float32',
                          name='trace_input')
+    reshape_traces = Reshape((N_stations * 4, length_trace, 1))(input_traces)
     input_metadata = Input(shape=(N_stations * 4, features), dtype='float32',
                            name='metadata_input')
 
@@ -24,7 +25,7 @@ def baseModel(N_stations, features, length_trace=80, trace_filter_1=64,
 
     Trace = Conv2D(trace_filter_1, (1, 7), strides=(1, 4), padding='valid',
                    activation='relu', data_format='channels_last',
-                   kernel_initializer='he_normal', )(input_traces)
+                   kernel_initializer='he_normal', )(reshape_traces)
     Trace = Conv2D(trace_filter_2, (1, 7), strides=(1, 4), padding='valid',
                    activation='relu', kernel_initializer='he_normal', )(Trace)
     Trace = Conv2D(10, (1, 4), strides=(1, 1), padding='valid', activation='relu',
@@ -58,7 +59,7 @@ def baseModelNoTraces(N_stations, features, length_trace=80, trace_filter_1=64,
     The basic model as described by https://arxiv.org/pdf/1708.00647.pdf, but flattened
     out
     '''
-    input_traces = Input(shape=(N_stations * 4, length_trace, 1), dtype='float32',
+    input_traces = Input(shape=(N_stations * 4, length_trace), dtype='float32',
                          name='trace_input')
     input_metadata = Input(shape=(N_stations * 4, features), dtype='float32',
                            name='metadata_input')
