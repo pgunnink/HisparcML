@@ -5,7 +5,9 @@ from keras.layers import Conv2D, Input, Reshape, concatenate, Conv1D, Flatten, \
 from .CustomMetrics import metric_degrees_difference
 
 
-def baseModel(N_stations, features, trace_filter_1=64, trace_filter_2=32, nfilter=6,
+def baseModel(N_stations, features, length_trace=80, trace_filter_1=64,
+              trace_filter_2=32,
+              nfilter=6,
               N_sep_layers=4):
     '''
     The basic model as described by https://arxiv.org/pdf/1708.00647.pdf, but flattened
@@ -47,7 +49,8 @@ def baseModel(N_stations, features, trace_filter_1=64, trace_filter_2=32, nfilte
     return model
 
 
-def baseModelNoTraces(N_stations, features, trace_filter_1=64, trace_filter_2=32,
+def baseModelNoTraces(N_stations, features, length_trace=80, trace_filter_1=64,
+                      trace_filter_2=32,
                       nfilter=6, N_sep_layers=4):
     '''
     The basic model as described by https://arxiv.org/pdf/1708.00647.pdf, but flattened
