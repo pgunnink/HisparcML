@@ -79,9 +79,13 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 events = []
                 for angle in available_zeniths:
                     settings = {'zenith_upper_bound': np.radians(angle + 1),
-                                'angle_lower_bound': np.radians(angle - 1)}
+                                'angle_lower_bound': np.radians(angle - 1),
+                                'energy_lower_bound': energy_low,
+                                'energy_upper_bound': energy_high}
                     res = data.root.traces.Traces.read_where(
-                        "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)", settings)
+                        "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound) & "
+                        "energy > energy_lower_bound & energy < energy_upper_bound",
+                        settings)
                     events.append(len(res))
                 events = np.array(events)
                 if verbose:
@@ -92,9 +96,12 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 events = []
                 for angle in available_zeniths:
                     settings = {'zenith_upper_bound': np.radians(angle + 1),
-                                'angle_lower_bound': np.radians(angle - 1)}
+                                'angle_lower_bound': np.radians(angle - 1),
+                                'energy_lower_bound': energy_low,
+                                'energy_upper_bound': energy_high}
                     res = data.root.traces.Traces.read_where(
-                        "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)",
+                        "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound) & "
+                        "energy > energy_lower_bound & energy < energy_upper_bound",
                         settings)
                     events.append(len(res))
                 events = np.array(events)
