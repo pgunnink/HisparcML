@@ -28,11 +28,13 @@ def baseModel(N_stations, features, length_trace=80, trace_filter_1=64,
 
     Trace = Conv2D(trace_filter_1, (1, 7), strides=(1, 4), padding='valid',
                    activation='relu', data_format='channels_last',
-                   kernel_initializer='he_normal', )(reshape_traces)
+                   kernel_initializer='he_normal', name='first_trace_conv')(
+        reshape_traces)
     Trace = Conv2D(trace_filter_2, (1, 7), strides=(1, 4), padding='valid',
-                   activation='relu', kernel_initializer='he_normal', )(Trace)
+                   activation='relu', kernel_initializer='he_normal',
+                   name='second_trace_conv' )(Trace)
     Trace = Conv2D(10, (1, 4), strides=(1, 1), padding='valid', activation='relu',
-                   kernel_initializer='he_normal', )(Trace)
+                   kernel_initializer='he_normal', name='third_trace_conv')(Trace)
     TraceResult = Reshape((N_stations, 4, 10))(Trace)
 
     x = concatenate([TraceResult, process_metadata])
@@ -245,3 +247,21 @@ def plotPerMips(model_prediction, actual_direction, idx_per_mip, highest_mip=10)
   plt.title('Error as function of MiP')
   plt.xlabel('MiP')
   plt.ylabel('Mean error in degrees')
+
+def compareTwoModels(model1_prediction, model2_prediction, actual_prediction):
+  plt.figure(figsize=(15,5))
+  plt.subplot(121)
+  a = angle_between_two_vectors(model1_prediction,actual_prediction)
+  a = np.compress(~np.isnan(a),a)
+  h = plt.hist(a,bins=np.degrees(np.linspace(0,0.1*np.pi,50)))
+  plt.title('NN with trace information')
+  plt.xlabel('Angle between actual and predicted shower direction in degrees')
+  plt.ylabel('Occurence')
+
+  plt.subplot(122)
+  a = angle_between_two_vectors(model2_prediction,actual_prediction)
+  a = np.compress(~np.isnan(a),a)
+  h = plt.hist(a,bins=np.degrees(np.linspace(0,0.1*np.pi,50)))
+  plt.title('NN without trace information')
+  plt.xlabel('Angle between actual and predicted shower direction in degrees')
+  plt.ylabel('Occurence')

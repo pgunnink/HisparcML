@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
     
     
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
-                             find_mips=True, uniform_dist=False, 
+                             find_mips=True, uniform_dist=False, rossi_dist=False,
                              no_gamma_peak=False, trigger=3, energy_low=9.9**16.5, 
                              energy_high=10.1**16.5, verbose=True,
                              max_samples=1, CHUNK_SIZE=10**4):
@@ -86,10 +86,38 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 events = np.array(events)
                 if verbose:
                     print({k:v for k, v in zip(available_zeniths,events)})
-                min_val = np.amin(events)*max_samples
+                min_val = np.ones(available_zeniths.shape)*np.amin(events)*max_samples
                 total_entries_max = entries
+            elif rossi_dist:
+                events = []
+                for angle in available_zeniths:
+                    settings = {'zenith_upper_bound': np.radians(angle + 1),
+                                'angle_lower_bound': np.radians(angle - 1)}
+                    res = data.root.traces.Traces.read_where(
+                        "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound)",
+                        settings)
+                    events.append(len(res))
+                events = np.array(events)
+                scale = events[5]/.19
+                new_dist = lambda theta,scaling : np.sin(theta)*np.cos(
+                    theta)**8*scaling+0.1*scaling
+                while ((events - new_dist(np.radians(available_zeniths),scale))<0).any():
+                    scale *= 0.9
+                else:
+                    if verbose:
+                        plt.figure()
+                        plt.plot(available_zeniths,events,'x',label='Available events')
+                        plt.plot(available_zeniths,new_dist(np.radians(available_zeniths),
+                                                            scale),'-',
+                                 label='New dist')
+                        plt.legend()
+                        plt.savefig('New_dist.png')
+                    min_val = new_dist(np.radians(available_zeniths), scale)*max_samples
+                    total_entries_max = entries
+
+
             else:
-                min_val = entries
+                min_val = np.ones(available_zeniths.shape)*entries
                 total_entries_max = entries*max_samples
             if verbose:
                 print('Maximum number of entries: %s' % total_entries_max)
@@ -115,7 +143,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 if np.count_nonzero(row['timings']!=0.) >= trigger:
                     if row['energy']>=energy_low and row['energy']<=energy_high:
                         idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
-                        if filled[idx]<min_val and i<total_entries_max:
+                        if filled[idx]<min_val[idx] and i<total_entries_max:
                             t = row['traces'].reshape((4*N_stations,80))
                             t = np.log10(-1 * t + 1)
                             traces_temp[i_chunk,:] = t
@@ -213,6 +241,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     pulseheights_temp = pulseheights[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:]
                     mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp / mpv
                 if verbose:
+                    plt.figure()
                     plt.bar(bins, h, width=(bins[1]-bins[0]))
                     plt.plot([mpv],[np.max(h)],'x')
                     plt.savefig('Pulseheights.png')
