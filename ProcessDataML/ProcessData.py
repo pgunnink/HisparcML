@@ -45,7 +45,13 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     # Open .h5 file, assuming N_stations stations are in this file, with 4
     # detectors each
     with tables.open_file(file_location, 'r') as data:
-        entries = len(data.root.traces.Traces) # count number of samples
+        #entries = len(data.root.traces.Traces) # count number of samples
+        settings = {'energy_lower_bound': energy_low,
+                    'energy_upper_bound': energy_high}
+        res = data.root.traces.Traces.read_where(
+            "(energy > energy_lower_bound) & (energy < energy_upper_bound)",
+            settings)
+        entries = len(res)
         with h5py.File(new_file_location, 'w') as f:
             # create the h5py dataset files
             traces = f.create_dataset('traces', shape=(entries, N_stations*4, 80),
@@ -84,7 +90,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                 'energy_upper_bound': energy_high}
                     res = data.root.traces.Traces.read_where(
                         "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound) & "
-                        "energy > energy_lower_bound & energy < energy_upper_bound",
+                        "(energy > energy_lower_bound) & (energy < energy_upper_bound)",
                         settings)
                     events.append(len(res))
                 events = np.array(events)
@@ -101,7 +107,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                 'energy_upper_bound': energy_high}
                     res = data.root.traces.Traces.read_where(
                         "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound) & "
-                        "energy > energy_lower_bound & energy < energy_upper_bound",
+                        "(energy > energy_lower_bound) & (energy < energy_upper_bound)",
                         settings)
                     events.append(len(res))
                 events = np.array(events)
