@@ -56,6 +56,49 @@ def baseModel(N_stations, features, length_trace=80, trace_filter_1=64,
 
     return model
 
+def reusedBaseModel(N_stations, features, prev_model, length_trace=80, trace_filter_1=64,
+             trace_filter_2=32,
+             nfilter=6,
+             N_sep_layers=4):
+    '''
+    A basic model reusing previous weights
+    '''
+    input_traces = Input(shape=(N_stations * 4, length_trace), dtype='float32',
+                         name='trace_input')
+    reshape_traces = Reshape((N_stations * 4, length_trace, 1))(input_traces)
+    input_metadata = Input(shape=(N_stations * 4, features), dtype='float32',
+                           name='metadata_input')
+
+    process_metadata = Reshape((N_stations, 4, features))(input_metadata)
+
+    Trace_1 = Conv2D(trace_filter_1, (1, 7), strides=(1, 4), padding='valid',
+                     activation='relu', data_format='channels_last',
+                     weights=prev_model.layers[2].get_weights(), trainable=False)(
+        reshape_traces)
+    Trace_2 = Conv2D(trace_filter_2, (1, 7), strides=(1, 4), padding='valid',
+                     activation='relu',
+                     weights=prev_model.layers[3].get_weights(), trainable=False)(
+        Trace_1)
+    Trace_3 = Conv2D(10, (1, 4), strides=(1, 1), padding='valid', activation='relu',
+                     weights=prev_model.layers[4].get_weights(), trainable=False)(
+        Trace_2)
+    TraceResult = Reshape((N_stations, 4, 10))(Trace_3)
+
+    x = concatenate([TraceResult, process_metadata])
+
+    x = Flatten()(x)
+    x = Dense(100, kernel_initializer='he_normal', activation='relu')(x)
+    x = Dense(50, kernel_initializer='he_normal', activation='relu')(x)
+    x = Dense(50, kernel_initializer='he_normal', activation='relu')(x)
+
+    Output = Dense(3)(x)
+
+    model = Model(inputs=[input_traces, input_metadata], outputs=Output)
+
+    A = Adam(lr=0.01)
+    model.compile(optimizer=A, loss='mse', metrics=[metric_degrees_difference])
+
+    return model
 
 def baseModelNoTraces(N_stations, features, length_trace=80, trace_filter_1=64,
                       trace_filter_2=32,
