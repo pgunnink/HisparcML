@@ -119,7 +119,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 else:
                     if verbose:
                         plt.figure()
-                        plt.plot(available_zeniths,events,'x',label='Available events')
+                        plt.plot(available_zeniths,events,'o',label='Available events')
                         plt.plot(available_zeniths,new_dist(np.radians(available_zeniths),
                                                             scale),'-',
                                  label='New dist')
