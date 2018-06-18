@@ -125,8 +125,9 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 row['x'] = x
                                 row['y'] = y
                                 row['z'] = z
-                                row['azimuth_rec'] = recs.col('azimuth')[station_event['event_id']]
-                                row['zenith_rec'] = recs.col('zenith')[station_event['event_id']]
+                                if reconstruct:
+                                    row['azimuth_rec'] = recs.col('azimuth')[station_event['event_id']]
+                                    row['zenith_rec'] = recs.col('zenith')[station_event['event_id']]
                                 row['pulseheights'] = pulseheights
                                 row['core_distance'] = distance_core
                                 row['id'] = total
