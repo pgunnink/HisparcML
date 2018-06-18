@@ -8,7 +8,7 @@ from sapphire.analysis.reconstructions import ReconstructSimulatedEvents
 import pdb
 
 def merge(stations, output = None, orig_stations=None, directory='.', verbose=True,
-          overwrite=False):
+          overwrite=False, reconstruct=False):
     """
     Merges the simulation data from individual 'the_simulation.h5' files from the
     core.* directories inside a certain directory
@@ -67,6 +67,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         core_distance = tables.Float32Col(shape=(len(STATIONS)))
 
 
+
     with tables.open_file(output_file, mode='w',
                           title='Collected data from %s' % STATIONS) as collected_traces:
         group = collected_traces.create_group('/', 'traces',
@@ -74,14 +75,21 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         table = collected_traces.create_table(group, 'Traces', Traces, 'Traces')
         row = table.row
 
+
+        if reconstruct:
+            fmode = 'a'
+        else:
+            fmode = 'r'
+
         total_ignored = 0
         total = 0
-        #for d in pbar(dirs):
+
         for d in dirs:
             try:
                 template = '%s/the_simulation.h5' % d
-                with tables.open_file(template, 'a') as data:
-                    if IGNORE_COINCIDENCES: # only possible if there is 1 station (for now)
+                with tables.open_file(template, fmode) as data:
+                    if IGNORE_COINCIDENCES and reconstruct: # only possible if there is 1
+                        # station (for now)
                         station_path = '/cluster_simulations/station_%s/' % STATIONS[0]
                         station = STATIONS[0]
                         rec = ReconstructSimulatedEvents(data, station_path, station,
