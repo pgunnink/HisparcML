@@ -44,7 +44,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
     combined_regex = "(" + ")|(".join([str(a) for a in STATIONS]) + ")"
     N = len(STATIONS)
-    cluster = HiSPARCStations(STATIONS, force_stale=True)
+    cluster = HiSPARCStations(STATIONS)
 
     core_re = re.compile(r"core.*")
     dirs = [os.path.join(directory, o) for o in os.listdir(directory) if
