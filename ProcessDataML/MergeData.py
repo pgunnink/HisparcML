@@ -7,6 +7,12 @@ from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
 from sapphire.analysis.reconstructions import ReconstructSimulatedEvents
 import pdb
 
+def filter_timings(timings):
+    timings[timings<0] = np.nan
+    if np.nanstd(timings)>200:
+        return False
+
+
 def merge(stations, output = None, orig_stations=None, directory='.', verbose=True,
           overwrite=False, reconstruct=False):
     """
@@ -83,7 +89,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
         total_ignored = 0
         total = 0
-
+        throwing_away = 0
         for d in dirs:
             try:
                 template = '%s/the_simulation.h5' % d
@@ -101,38 +107,43 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                     if IGNORE_COINCIDENCES:
                         for station in data.root.cluster_simulations:
                             for station_event in station.events:
-                                trace = np.zeros([4, 80], dtype=np.float32)
-                                timings = np.zeros([4], dtype=np.float32)
-                                pulseheights = np.zeros([4], dtype=np.int16)
-                                trace[:, :] = station_event['traces']
-                                zenith = station_event['zenith']
-                                azimuth = station_event['azimuth']
-                                energy = station_event['shower_energy']
-                                distance_core = station_event['core_distance']
                                 timings_station = np.array(
                                     [station_event['t1'], station_event['t2'],
                                      station_event['t3'], station_event['t4']])
-                                timings_station[timings_station < 0] = 0
-                                timings[:] = timings_station
-                                pulseheights[:] = station_event['pulseheights']
-                                row['traces'] = trace
-                                row['N'] = 1
-                                row['azimuth'] = azimuth
-                                row['zenith'] = zenith
-                                row['energy'] = energy
-                                row['timings'] = timings
-                                x, y, z = azimuth_zenith_to_cartestian(zenith, azimuth)
-                                row['x'] = x
-                                row['y'] = y
-                                row['z'] = z
-                                if reconstruct:
-                                    row['azimuth_rec'] = recs.col('azimuth')[station_event['event_id']]
-                                    row['zenith_rec'] = recs.col('zenith')[station_event['event_id']]
-                                row['pulseheights'] = pulseheights
-                                row['core_distance'] = distance_core
-                                row['id'] = total
-                                row.append()
-                                total += 1
+                                if filter_timings(timings_station):
+                                    trace = np.zeros([4, 80], dtype=np.float32)
+                                    timings = np.zeros([4], dtype=np.float32)
+                                    pulseheights = np.zeros([4], dtype=np.int16)
+                                    trace[:, :] = station_event['traces']
+                                    zenith = station_event['zenith']
+                                    azimuth = station_event['azimuth']
+                                    energy = station_event['shower_energy']
+                                    distance_core = station_event['core_distance']
+
+
+                                    timings_station[timings_station < 0] = 0
+                                    timings[:] = timings_station
+                                    pulseheights[:] = station_event['pulseheights']
+                                    row['traces'] = trace
+                                    row['N'] = 1
+                                    row['azimuth'] = azimuth
+                                    row['zenith'] = zenith
+                                    row['energy'] = energy
+                                    row['timings'] = timings
+                                    x, y, z = azimuth_zenith_to_cartestian(zenith, azimuth)
+                                    row['x'] = x
+                                    row['y'] = y
+                                    row['z'] = z
+                                    if reconstruct:
+                                        row['azimuth_rec'] = recs.col('azimuth')[station_event['event_id']]
+                                        row['zenith_rec'] = recs.col('zenith')[station_event['event_id']]
+                                    row['pulseheights'] = pulseheights
+                                    row['core_distance'] = distance_core
+                                    row['id'] = total
+                                    row.append()
+                                    total += 1
+                                else:
+                                    throwing_away += 1
                         data.close()
                     else:
                         for coin in data.root.coincidences.coincidences:
@@ -157,6 +168,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         timings_station = np.array(
                                             [station_event['t1'], station_event['t2'],
                                              station_event['t3'], station_event['t4']])
+
                                         timings_station[timings_station < 0] = 0
                                         timings[station, :] = timings_station
                                         pulseheights[station, :] = station_event['pulseheights']
@@ -184,3 +196,4 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                 # os.system('rm -r %s' % d)
         table.flush()
         print('Total entries: %d' % (total))
+        print('Thrown away: %s' % throwing_away)
