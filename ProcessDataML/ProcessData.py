@@ -275,6 +275,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                       [-1, N_stations * 4])
             total_traces = np.log10(total_traces+1)
             total_traces -= np.mean(total_traces, axis=1)[:, np.newaxis]
+            print("Std of integrals: %s" % np.std(total_traces))
             total_traces /= np.std(total_traces)
             if verbose:
                 print('Creating total_traces %s'% (timeit.default_timer() - start_time))
@@ -284,6 +285,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             idx = timings != 0.
             timings[~idx] = np.nan
             timings -= np.nanmean(timings,axis=1)[:,np.newaxis]
+            print('Std of timings: %s' % np.nanstd(timings))
             timings /= np.nanstd(timings)
             timings[~idx] = 0.
             if verbose:
