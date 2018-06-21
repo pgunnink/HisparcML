@@ -11,6 +11,8 @@ def filter_timings(timings):
     timings[timings<0] = np.nan
     if np.nanstd(timings)>200:
         return False
+    else:
+        return True
 
 
 def merge(stations, output = None, orig_stations=None, directory='.', verbose=True,
