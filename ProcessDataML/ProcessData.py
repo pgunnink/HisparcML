@@ -287,7 +287,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             timings -= np.nanmean(timings,axis=1)[:,np.newaxis]
             if verbose:
                 plt.figure()
-                plt.hist(np.extract(~np.isnan(timings.flatten()),timings.flatten())
+                plt.hist(np.extract(~np.isnan(timings.flatten()),timings.flatten()),
                 bins=30)
             print('Std of timings: %s' % np.nanstd(timings))
             timings /= np.nanstd(timings)
