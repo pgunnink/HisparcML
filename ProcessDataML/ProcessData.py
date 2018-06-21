@@ -285,6 +285,9 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             idx = timings != 0.
             timings[~idx] = np.nan
             timings -= np.nanmean(timings,axis=1)[:,np.newaxis]
+            if verbose:
+                plt.figure()
+                plt.hist(timings.flatten(), bins=30)
             print('Std of timings: %s' % np.nanstd(timings))
             timings /= np.nanstd(timings)
             timings[~idx] = 0.
