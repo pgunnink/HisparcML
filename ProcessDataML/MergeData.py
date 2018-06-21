@@ -8,8 +8,8 @@ from sapphire.analysis.reconstructions import ReconstructSimulatedEvents
 import pdb
 
 def filter_timings(timings):
-    timings[timings<0] = np.nan
-    if np.nanstd(timings)>200:
+    std = np.nanstd(np.extract(timings<0,timings))
+    if std>200:
         return False
     else:
         return True
