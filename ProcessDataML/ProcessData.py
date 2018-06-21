@@ -7,6 +7,8 @@ import matplotlib
 from fast_histogram import histogram1d
 import timeit
 
+
+# determine where to plot to
 try:
     cfg = get_ipython().config 
     if cfg['IPKernelApp']['kernel_class'] == 'google.colab._kernel.Kernel':
@@ -20,7 +22,7 @@ import matplotlib.pyplot as plt
 
 
     
-    
+
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, rossi_dist=False,
                              no_gamma_peak=False, trigger=3, energy_low=9.9**16.5, 
@@ -28,6 +30,10 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              max_samples=1, CHUNK_SIZE=10**4):
     """
     read a h5 file made by merge.py from all individual simulation files
+
+    traces (and resulting variables pulseheights and pulseintegras) are scaled by the
+    position of the mip peak
+
     :param file_location: location of h5 file made by merge.py
     :param new_file_location: location of h5 file made by read_sapphire_simulation
     :param N_stations: number of stations in h5 file
@@ -39,6 +45,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param energy_high: high energy cut
     :param max_samples: ratio of the number of samples to cut (use only with uniform_dist=True)
     :param CHUNK_SIZE: size of individual CHUNKS that are writte together to disk
+    :param verbose: if True write output and create plots
     :return: nothing
     """
     start_time = timeit.default_timer()
@@ -158,7 +165,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
                         if filled[idx]<min_val[idx] and i<total_entries_max:
                             t = row['traces'].reshape((4*N_stations,80))
-                            t = np.log10(-1 * t + 1)
+                            t = np.log10(-1 * t  + 1)
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
                             timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
@@ -248,11 +255,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                             dtype='float64')
                 for i in range(int(np.floor(new_entries/CHUNK_SIZE))):
                     pulseheights_temp = pulseheights[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:]
-                    mips[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:] = pulseheights_temp / mpv
+                    mips[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:] = pulseheights_temp
                 else:
                     remaining = new_entries % CHUNK_SIZE
                     pulseheights_temp = pulseheights[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:]
-                    mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp / mpv
+                    mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp
                 if verbose:
                     plt.figure()
                     plt.bar(bins, h, width=(bins[1]-bins[0]))
@@ -264,8 +271,9 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             # reshape traces such that for every coincidence we have N_stations*4 traces
             # calculate total trace (aka the pulseintegral)
 
-            total_traces = np.reshape(np.sum(np.abs(traces), axis=2), [-1, N_stations * 4])
-            total_traces = np.log10(total_traces + 1)
+            total_traces = np.reshape(np.sum(np.abs(10**traces-1) / mpv, axis=2),
+                                      [-1, N_stations * 4])
+            total_traces = np.log10(total_traces+1)
             total_traces -= np.mean(total_traces, axis=1)[:, np.newaxis]
             total_traces /= np.std(total_traces)
             if verbose:
@@ -284,7 +292,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             input_features[:,:,:] = np.stack((timings,total_traces),axis=2)
             # shuffle everything
             permutation = np.random.permutation(new_entries)
-            traces[:] = traces[:][permutation,:]
+            traces[:] = traces[:][permutation,:] - np.log10(mpv)
             labels[:] = labels[:][permutation,:]
             input_features[:] = input_features[:][permutation,:]
             if find_mips:
