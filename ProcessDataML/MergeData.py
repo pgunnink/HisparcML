@@ -8,8 +8,7 @@ from sapphire.analysis.reconstructions import ReconstructSimulatedEvents
 import pdb
 
 def filter_timings(timings):
-    std = np.std(np.extract(timings<0,timings))
-    pdb.set_trace()
+    std = np.std(np.extract(timings>0,timings))
     if std>200:
         return False
     else:
@@ -79,6 +78,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
     with tables.open_file(output_file, mode='w',
                           title='Collected data from %s' % STATIONS) as collected_traces:
+
+        # create the table /traces/traces
         group = collected_traces.create_group('/', 'traces',
                                               'Traces with azimuth and zenith information')
         table = collected_traces.create_table(group, 'Traces', Traces, 'Traces')
@@ -90,12 +91,15 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         else:
             fmode = 'r'
 
-        total_ignored = 0
         total = 0
         throwing_away = 0
+        # loop over all core* directories
         for d in dirs:
+            # wrap in try except block, because sometimes a core* dir exists,
+            # but without the_simulation.h5 file
             try:
                 template = '%s/the_simulation.h5' % d
+                # open only in append mode if reconstructing direction
                 with tables.open_file(template, fmode) as data:
                     if IGNORE_COINCIDENCES and reconstruct: # only possible if there is 1
                         # station (for now)
@@ -104,35 +108,49 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                         rec = ReconstructSimulatedEvents(data, station_path, station,
                                                          verbose=False, overwrite=overwrite,
                                                          progress=False)
-                        # rec.direction = CoincidenceDirectionReconstructionDetectors(cluster)
                         rec.reconstruct_and_store()
                         recs = data.get_node(station_path).reconstructions
-                    if IGNORE_COINCIDENCES:
+                    if IGNORE_COINCIDENCES: # create one entry for every event in every
+                        #  station
                         for station in data.root.cluster_simulations:
                             for station_event in station.events:
+
                                 timings_station = np.array(
                                     [station_event['t1'], station_event['t2'],
                                      station_event['t3'], station_event['t4']])
+                                # due to a bug in the GEANT simulation sometimes a timing
+                                #  of -999 is included, so filter these out (bug is
+                                # fixed now, so should no longer be neccessary unless
+                                # when working with old data)
                                 if filter_timings(timings_station):
+                                    # create empty arrays to fill
                                     trace = np.zeros([4, 80], dtype=np.float32)
                                     timings = np.zeros([4], dtype=np.float32)
                                     pulseheights = np.zeros([4], dtype=np.int16)
+
+                                    # fill using data from h5 file
                                     trace[:, :] = station_event['traces']
                                     zenith = station_event['zenith']
                                     azimuth = station_event['azimuth']
                                     energy = station_event['shower_energy']
                                     distance_core = station_event['core_distance']
 
+                                    if np.count_nonzero(np.isnan(timings_station))>0:
+                                        print(timings_station)
 
+                                    # remove the -999 timings and set to 0
                                     timings_station[timings_station < 0] = 0
                                     timings[:] = timings_station
                                     pulseheights[:] = station_event['pulseheights']
+
+                                    # write to new h5 file
                                     row['traces'] = trace
                                     row['N'] = 1
                                     row['azimuth'] = azimuth
                                     row['zenith'] = zenith
                                     row['energy'] = energy
                                     row['timings'] = timings
+                                    # convert zenith and azimuth to x y z
                                     x, y, z = azimuth_zenith_to_cartestian(zenith, azimuth)
                                     row['x'] = x
                                     row['y'] = y
@@ -149,6 +167,12 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                     throwing_away += 1
                         data.close()
                     else:
+                        # recreating coincidences, so per coincidence a list of the
+                        # traces etc. per station
+
+                        # code right now is not complete (no support for
+                        # reconstructions, no fix for the -999 bug) but the algorithm
+                        # focussed mainly on 1 station, so it is not a priority
                         for coin in data.root.coincidences.coincidences:
                             if coin['N'] >= 1:
                                 trace = np.zeros([len(STATIONS), 4, 80], dtype=np.float32)
@@ -196,7 +220,6 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                 if verbose:
                     print('Error occurred in %s' % (d))
                     print(e)
-                # os.system('rm -r %s' % d)
         table.flush()
         print('Total entries: %d' % (total))
         print('Thrown away: %s' % throwing_away)

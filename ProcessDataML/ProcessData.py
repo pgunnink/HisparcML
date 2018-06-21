@@ -154,18 +154,24 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             energy_temp = np.empty([CHUNK_SIZE])
 
 
-            # loop over all entries and fill them
+
             i = 0
             i_chunk = 0
             chunk_count = 0
-
+            # loop over all entries and fill them
             for row in data.root.traces.Traces.iterrows():
+                # first filter on the trigger
                 if np.count_nonzero(row['timings']!=0.) >= trigger:
+                    # now filter on energy
                     if row['energy']>=energy_low and row['energy']<=energy_high:
+                        # and filter on zenith angle (if a distribution is wanted)
                         idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
                         if filled[idx]<min_val[idx] and i<total_entries_max:
+                            # read neccessary data from h5 file and create the
+                            # temporary chunks
                             t = row['traces'].reshape((4*N_stations,80))
                             t = np.log10(-1 * t  + 1)
+
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
                             timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
@@ -175,13 +181,17 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             zenith_temp[i_chunk] = row['zenith']
                             azimuth_temp[i_chunk] = row['azimuth']
                             energy_temp[i_chunk] = row['energy']
+
                             i_chunk += 1
                             i += 1
+                            # when we have gathered enough events write them all to
+                            # disk at once
                             if i_chunk==CHUNK_SIZE:
                                 chunk_count += 1
                                 if verbose:
                                     print('Writing chunk %s' % chunk_count)
                                 i_chunk = 0
+
                                 traces[i-CHUNK_SIZE:i,] = traces_temp
                                 labels[i-CHUNK_SIZE:i,] = labels_temp
                                 input_features[i - CHUNK_SIZE:i,:,0] = timings_temp
@@ -191,10 +201,12 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                 zenith[i - CHUNK_SIZE:i] = zenith_temp
                                 azimuth[i - CHUNK_SIZE:i] = azimuth_temp
                                 energy[i - CHUNK_SIZE:i] = energy_temp
-                            filled[idx] += 1
+                            filled[idx] += 1 # in order to keep track of zenith
+                            # distribution
                         elif i>total_entries_max:
                             break
-            if i_chunk>0:
+            # make sure to write the last, half-filled chunk as well
+            if i_chunk>0: # make sure that the last chunk is actually filled
                 traces[i - i_chunk:i,] = traces_temp[:i_chunk,]
                 labels[i - i_chunk:i,] = labels_temp[:i_chunk,]
                 input_features[i - i_chunk:i,:,0] = timings_temp[:i_chunk,]
@@ -204,10 +216,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 zenith[i - i_chunk:i] = zenith_temp[:i_chunk,]
                 azimuth[i - i_chunk:i] = azimuth_temp[:i_chunk,]
                 energy[i - i_chunk:i] = energy[:i_chunk,]
+
             if verbose:
                 print('Filling datasets %s'% (timeit.default_timer() - start_time))
-            if verbose:
                 print('Out of %.2d items %.2d remained' % (entries, i))
+
             # remove part of the array that was not filled
             traces.resize(i,axis=0)
             labels.resize(i,axis=0)
@@ -219,6 +232,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             azimuth.resize(i,axis=0)
             energy.resize(i, axis=0)
             new_entries = i
+
             if find_mips:
                 # From this data determine the MiP peak
                 # first create a pulseheight histogram
@@ -249,10 +263,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     mpv = mpv[0]
                 else:
                     raise AssertionError('No MPV found!')
-                # calculate number of mips per trace
+                # calculate number of mips per pulse
                 mips = f.create_dataset('mips', shape=(len(traces), N_stations*4),
                                             chunks=(CHUNK_SIZE,N_stations*4),
                                             dtype='float64')
+                # loop over the pulseheights and convert to mips
                 for i in range(int(np.floor(new_entries/CHUNK_SIZE))):
                     pulseheights_temp = pulseheights[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:]
                     mips[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:] = pulseheights_temp
@@ -260,17 +275,19 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     remaining = new_entries % CHUNK_SIZE
                     pulseheights_temp = pulseheights[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:]
                     mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp
+
+                # plot the pulseheights
                 if verbose:
                     plt.figure()
                     plt.bar(bins, h, width=(bins[1]-bins[0]))
                     plt.plot([mpv],[np.max(h)],'x')
                     plt.savefig('Pulseheights.png')
                     print('mpv %s' % mpv)
+
             if verbose:
                 print('Finding MiP %s'% (timeit.default_timer() - start_time))
-            # reshape traces such that for every coincidence we have N_stations*4 traces
-            # calculate total trace (aka the pulseintegral)
 
+            # calculate total trace (aka the pulseintegral) and rescale by mpv
             total_traces = np.reshape(np.sum(np.abs(10**traces[:]-1) / mpv, axis=2),
                                       [-1, N_stations * 4])
             total_traces = np.log10(total_traces+1)
@@ -291,12 +308,14 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                          bins=np.linspace(-100,100,50))
                 plt.savefig('histogram_timings.png')
             print('Std of timings: %s' % np.nanstd(timings))
+            import pdb; pdb.set_trace()
             timings /= np.nanstd(timings)
             timings[~idx] = 0.
             if verbose:
                 print('Normalizing input_features %s'% (timeit.default_timer() - start_time))
 
             input_features[:,:,:] = np.stack((timings,total_traces),axis=2)
+
             # shuffle everything
             permutation = np.random.permutation(new_entries)
             traces[:] = traces[:][permutation,:] - np.log10(mpv)
@@ -311,4 +330,3 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             energy[:] = energy[:][permutation]
             if verbose:
                 print('Shuffling everything %s'% (timeit.default_timer() - start_time))
-
