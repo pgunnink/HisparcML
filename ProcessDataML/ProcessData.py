@@ -271,7 +271,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             # reshape traces such that for every coincidence we have N_stations*4 traces
             # calculate total trace (aka the pulseintegral)
 
-            total_traces = np.reshape(np.sum(np.abs(10**traces-1) / mpv, axis=2),
+            total_traces = np.reshape(np.sum(np.abs(10**traces[:]-1) / mpv, axis=2),
                                       [-1, N_stations * 4])
             total_traces = np.log10(total_traces+1)
             total_traces -= np.mean(total_traces, axis=1)[:, np.newaxis]
