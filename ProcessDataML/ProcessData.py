@@ -317,7 +317,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
             # shuffle everything
             permutation = np.random.permutation(new_entries)
-            traces[:] = traces[:][permutation,:] - np.log10(mpv)
+            traces[:] = np.log10((10**traces[:][permutation,:]-1)/mpv + 1)
             labels[:] = labels[:][permutation,:]
             input_features[:] = input_features[:][permutation,:]
             if find_mips:
