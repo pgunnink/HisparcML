@@ -170,7 +170,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             # read neccessary data from h5 file and create the
                             # temporary chunks
                             if np.count_nonzero(row['pulseheights']<0) or  \
-                                    np.count_nonzero(row['pulseheights']>10000):
+                                    np.count_nonzero(row['pulseheights']>2000):
                                 continue
                             t = row['traces'].reshape((4*N_stations,80))
                             t = np.log10(-1 * t  + 1)
