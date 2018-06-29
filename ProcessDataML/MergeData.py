@@ -4,7 +4,8 @@ import re
 import os
 from sapphire import HiSPARCStations
 from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
-from sapphire.analysis.reconstructions import ReconstructSimulatedEvents
+from sapphire.analysis.reconstructions import ReconstructSimulatedEvents, \
+    ReconstructSimulatedCoincidences
 import pdb
 
 def filter_timings(timings):
@@ -72,7 +73,9 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         z = tables.Float32Col()
         azimuth_rec = tables.Float32Col()
         zenith_rec = tables.Float32Col()
-        core_distance = tables.Float32Col(shape=(len(STATIONS)))
+        core_distance = tables.Float32Col()
+        core_position = tables.Float32Col(shape=(2,))
+
 
 
 
@@ -129,7 +132,10 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                     pulseheights = np.zeros([4], dtype=np.int16)
 
                                     # fill using data from h5 file
-                                    trace[:, :] = station_event['traces']
+                                    trace_local = station_event['traces']
+                                    trace_local[trace_local < -2] = -2
+                                    trace[station, :, :] = trace_local
+                                    trace[:, :] = trace_local
                                     zenith = station_event['zenith']
                                     azimuth = station_event['azimuth']
                                     energy = station_event['shower_energy']
@@ -141,7 +147,9 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                     # remove the -999 timings and set to 0
                                     timings_station[timings_station < 0] = 0
                                     timings[:] = timings_station
-                                    pulseheights[:] = station_event['pulseheights']
+                                    pulseheights_local = station_event['pulseheights']
+                                    pulseheights_local[pulseheights_local > 2] = 2
+                                    pulseheights[:] = pulseheights_local
 
                                     # write to new h5 file
                                     row['traces'] = trace
@@ -167,28 +175,41 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                     throwing_away += 1
                         data.close()
                     else:
+                        if reconstruct:
+                            rec = ReconstructSimulatedCoincidences(data,
+                                                                   destination='reconstructions',
+                                                                   overwrite=overwrite)
+                            rec.reconstruct_and_store()
+                            recs = data.get_node('/coincidences/reconstructions')
                         # recreating coincidences, so per coincidence a list of the
                         # traces etc. per station
 
-                        # code right now is not complete (no support for
-                        # reconstructions, no fix for the -999 bug) but the algorithm
-                        # focussed mainly on 1 station, so it is not a priority
-                        for coin in data.root.coincidences.coincidences:
+                        # for evey incoming shower the coincidences are saved for some
+                        # reason, but only if there is a hit the timestamp>0
+                        for coin in data.root.coincidences.coincidences.where(
+                                'timestamp>0'):
                             if coin['N'] >= 1:
                                 trace = np.zeros([len(STATIONS), 4, 80], dtype=np.float32)
                                 timings = np.zeros([len(STATIONS), 4], dtype=np.float32)
                                 pulseheights = np.zeros([len(STATIONS), 4], dtype=np.int16)
-                                core_distance = np.zeros((len(STATIONS),),
-                                                         dtype=np.float32)
+
+                                # the c_index maps the coincidences to the events in
+                                # the format [[station_id, event_id],...]. You then use
+                                # the
+                                # s_index table to look up the path to the station
+                                # using the station_id
                                 c_index = data.root.coincidences.c_index[coin['id']]
                                 for station, event_idx in c_index:
-                                    station_path = data.root.coincidences.s_index[station].decode(
-                                        'UTF-8')
+                                    station_path = data.root.coincidences.s_index[station].\
+                                        decode('UTF-8')
+                                    # make sure the path exists
                                     if re.search(combined_regex, station_path) is not None:
                                         station_event = data.get_node(station_path, 'events')[
                                             event_idx]
                                         station = STATIONS.index(ORIG_STATIONS[station])
-                                        trace[station, :, :] = station_event['traces']
+                                        trace_local = station_event['traces']
+                                        trace_local[trace_local<-2] = -2
+                                        trace[station, :, :] = trace_local
                                         zenith = station_event['zenith']
                                         azimuth = station_event['azimuth']
                                         energy = station_event['shower_energy']
@@ -198,8 +219,9 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
                                         timings_station[timings_station < 0] = 0
                                         timings[station, :] = timings_station
+                                        pulseheights_local = station_event['pulseheights']
+                                        pulseheights_local[pulseheights_local>2] = 2
                                         pulseheights[station, :] = station_event['pulseheights']
-                                        core_distance[station] = station_event['core_distance']
                                 row['traces'] = trace
                                 row['N'] = coin['N']
                                 row['azimuth'] = azimuth
@@ -210,10 +232,13 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 row['x'] = x
                                 row['y'] = y
                                 row['z'] = z
-                                #row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
-                                #row['zenith_rec'] = recs.col('zenith')[coin['id']]
+                                if reconstruct:
+                                    row['azimuth_rec'] = recs.col('azimuth')[coin['id']]
+                                    row['zenith_rec'] = recs.col('zenith')[coin['id']]
                                 row['pulseheights'] = pulseheights
                                 row['id'] = total
+                                row['core_position'] = [coin['x'], coin['y']]
+
                                 row.append()
                                 total += 1
             except Exception as e:
@@ -221,5 +246,5 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                     print('Error occurred in %s' % (d))
                     print(e)
         table.flush()
-        print('Total entries: %d' % (total))
+        print('Total entries: %d' % total)
         print('Thrown away: %s' % throwing_away)
