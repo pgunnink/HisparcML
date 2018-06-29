@@ -243,6 +243,14 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 bins = np.linspace(r[0],r[1],number_of_bins)
                 h = histogram1d(pulseheights_flat, range=r, bins= number_of_bins)
 
+                # plot the pulseheights
+                if verbose:
+                    plt.figure()
+                    plt.bar(bins, h, width=(bins[1] - bins[0]))
+
+
+
+
                 del pulseheights_flat # clear some memory
                 find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
 
@@ -253,6 +261,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         mpv = (find_m_p_v.fit_mpv(mpv_guess),True)
                     except:
                         mpv = (-999, False)
+
                 else:
                     # find the peak in this pulseheight histogram
                     mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
@@ -261,7 +270,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 # ensure that the algorithm did not fail:
                 if mpv[1]:
                     mpv = mpv[0]
+                    plt.plot([mpv], [np.max(h)], 'x')
+                    print('mpv %s' % mpv)
+                    plt.savefig('Pulseheights.png')
                 else:
+                    plt.savefig('Pulseheights.png')
                     raise AssertionError('No MPV found!')
                 # calculate number of mips per pulse
                 mips = f.create_dataset('mips', shape=(len(traces), N_stations*4),
@@ -276,13 +289,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     pulseheights_temp = pulseheights[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:]
                     mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp
 
-                # plot the pulseheights
-                if verbose:
-                    plt.figure()
-                    plt.bar(bins, h, width=(bins[1]-bins[0]))
-                    plt.plot([mpv],[np.max(h)],'x')
-                    plt.savefig('Pulseheights.png')
-                    print('mpv %s' % mpv)
+
 
             if verbose:
                 print('Finding MiP %s'% (timeit.default_timer() - start_time))
