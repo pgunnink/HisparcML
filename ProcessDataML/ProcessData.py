@@ -169,6 +169,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         if filled[idx]<min_val[idx] and i<total_entries_max:
                             # read neccessary data from h5 file and create the
                             # temporary chunks
+                            if np.count_nonzero(row['pulseheights']<0):
+                                continue
                             t = row['traces'].reshape((4*N_stations,80))
                             t = np.log10(-1 * t  + 1)
 
