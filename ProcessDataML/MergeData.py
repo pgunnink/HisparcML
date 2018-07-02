@@ -6,7 +6,10 @@ from sapphire import HiSPARCStations
 from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
 from sapphire.analysis.reconstructions import ReconstructSimulatedEvents, \
     ReconstructSimulatedCoincidences
+from sapphire.utils import pbar
 import pdb
+
+MAX_VOLTAGE = 4096*0.57
 
 def filter_timings(timings):
     std = np.std(np.extract(timings>0,timings))
@@ -97,7 +100,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         total = 0
         throwing_away = 0
         # loop over all core* directories
-        for d in dirs:
+        for d in pbar(dirs):
             # wrap in try except block, because sometimes a core* dir exists,
             # but without the_simulation.h5 file
             try:
@@ -106,6 +109,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                 with tables.open_file(template, fmode) as data:
                     if IGNORE_COINCIDENCES and reconstruct: # only possible if there is 1
                         # station (for now)
+
                         station_path = '/cluster_simulations/station_%s/' % STATIONS[0]
                         station = STATIONS[0]
                         rec = ReconstructSimulatedEvents(data, station_path, station,
@@ -133,8 +137,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
                                     # fill using data from h5 file
                                     trace_local = station_event['traces']
-                                    trace_local[trace_local < -2] = -2
-                                    trace[station, :, :] = trace_local
+                                    trace_local[trace_local < -MAX_VOLTAGE] = -MAX_VOLTAGE
                                     trace[:, :] = trace_local
                                     zenith = station_event['zenith']
                                     azimuth = station_event['azimuth']
@@ -148,7 +151,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                     timings_station[timings_station < 0] = 0
                                     timings[:] = timings_station
                                     pulseheights_local = station_event['pulseheights']
-                                    pulseheights_local[pulseheights_local > 2] = 2
+                                    pulseheights_local[pulseheights_local >
+                                                       MAX_VOLTAGE] = MAX_VOLTAGE
                                     pulseheights[:] = pulseheights_local
 
                                     # write to new h5 file
@@ -208,7 +212,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                             event_idx]
                                         station = STATIONS.index(ORIG_STATIONS[station])
                                         trace_local = station_event['traces']
-                                        trace_local[trace_local<-2] = -2
+                                        trace_local[trace_local<-MAX_VOLTAGE] = -MAX_VOLTAGE
                                         trace[station, :, :] = trace_local
                                         zenith = station_event['zenith']
                                         azimuth = station_event['azimuth']
@@ -220,7 +224,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         timings_station[timings_station < 0] = 0
                                         timings[station, :] = timings_station
                                         pulseheights_local = station_event['pulseheights']
-                                        pulseheights_local[pulseheights_local>2] = 2
+                                        pulseheights_local[pulseheights_local>MAX_VOLTAGE] = MAX_VOLTAGE
                                         pulseheights[station, :] = station_event['pulseheights']
                                 row['traces'] = trace
                                 row['N'] = coin['N']
