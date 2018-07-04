@@ -56,6 +56,49 @@ def baseModel(N_stations, features, length_trace=80, trace_filter_1=64,
 
     return model
 
+def baseModelDense(N_stations, features, length_trace=80, trace_filter_1=64,
+              trace_filter_2=32,
+              nfilter=6,
+              N_sep_layers=4):
+    '''
+    The basic model as described by https://arxiv.org/pdf/1708.00647.pdf, but flattened
+    out
+    '''
+    input_traces = Input(shape=(N_stations * 4, length_trace), dtype='float32',
+                         name='trace_input')
+    reshape_traces = Reshape((N_stations * 4, length_trace, 1))(input_traces)
+    input_metadata = Input(shape=(N_stations * 4, features), dtype='float32',
+                           name='metadata_input')
+
+    process_metadata = Reshape((N_stations, 4, features))(input_metadata)
+
+    Trace = Conv2D(trace_filter_1, (1, 7), strides=(1, 4), padding='valid',
+                   activation='relu', data_format='channels_last',
+                   kernel_initializer='he_normal', name='first_trace_conv')(
+        reshape_traces)
+    Trace = Conv2D(trace_filter_2, (1, 7), strides=(1, 4), padding='valid',
+                   activation='relu', kernel_initializer='he_normal',
+                   name='second_trace_conv' )(Trace)
+    Trace = Conv2D(10, (1, 4), strides=(1, 1), padding='valid', activation='relu',
+                   kernel_initializer='he_normal', name='third_trace_conv')(Trace)
+    TraceResult = Reshape((N_stations, 4, 10))(Trace)
+
+    x = concatenate([TraceResult, process_metadata])
+
+    x = Flatten()(x)
+    x = Dense(20*N_stations, kernel_initializer='he_normal', activation='relu')(x)
+    x = Dense(10*N_stations, kernel_initializer='he_normal', activation='relu')(x)
+    x = Dense(5*N_stations, kernel_initializer='he_normal', activation='relu')(x)
+
+    Output = Dense(3)(x)
+
+    model = Model(inputs=[input_traces, input_metadata], outputs=Output)
+
+    A = Adam(lr=0.001)
+    model.compile(optimizer=A, loss='mse', metrics=[metric_degrees_difference])
+
+    return model
+
 def reusedBaseModel(N_stations, features, prev_model, length_trace=80, trace_filter_1=64,
              trace_filter_2=32,
              nfilter=6,
