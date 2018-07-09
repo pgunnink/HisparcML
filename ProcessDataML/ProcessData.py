@@ -294,11 +294,13 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                             dtype='float64')
                 # loop over the pulseheights and convert to mips
                 for i in range(int(np.floor(new_entries/CHUNK_SIZE))):
-                    pulseheights_temp = pulseheights[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:]
+                    pulseheights_temp = pulseheights[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,
+                                        :] / mpv
                     mips[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,:] = pulseheights_temp
                 else:
                     remaining = new_entries % CHUNK_SIZE
-                    pulseheights_temp = pulseheights[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:]
+                    pulseheights_temp = pulseheights[
+                                        i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] / mpv
                     mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp
 
 
@@ -336,7 +338,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
             # shuffle everything
             permutation = np.random.permutation(new_entries)
-            traces[:] = np.log10((10**traces[:][permutation,:]-1)/mpv + 1)
+            traces[:] = np.log10((10**traces[:][permutation,:]-1) / mpv + 1)
             labels[:] = labels[:][permutation,:]
             input_features[:] = input_features[:][permutation,:]
             if find_mips:
