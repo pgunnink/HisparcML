@@ -169,15 +169,19 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         if filled[idx]<min_val[idx] and i<total_entries_max:
                             # read neccessary data from h5 file and create the
                             # temporary chunks
-
                             t = row['traces'].reshape((4*N_stations,80))
                             t = np.log10(-1 * t  + 1)
 
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
                             timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
-                            rec_z_temp[i_chunk] = row['zenith_rec']
-                            rec_a_temp[i_chunk] = row['azimuth_rec']
+                            if np.isnan(row['zenith_rec']):
+                                rec_z_temp[i_chunk] = np.nan
+                                rec_a_temp[i_chunk] = np.nan
+                            else:
+                                rec_z_temp[i_chunk] = row['zenith_rec']
+                                rec_a_temp[i_chunk] = row['azimuth_rec']
+
                             pulseheights_temp[i_chunk] = row['pulseheights'].reshape((4*N_stations,))
                             zenith_temp[i_chunk] = row['zenith']
                             azimuth_temp[i_chunk] = row['azimuth']

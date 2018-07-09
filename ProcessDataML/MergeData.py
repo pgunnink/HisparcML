@@ -74,8 +74,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         x = tables.Float32Col()
         y = tables.Float32Col()
         z = tables.Float32Col()
-        azimuth_rec = tables.Float32Col()
-        zenith_rec = tables.Float32Col()
+        azimuth_rec = tables.Float32Col(dflt=np.nan)
+        zenith_rec = tables.Float32Col(dflt=np.nan)
         core_distance = tables.Float32Col()
         core_position = tables.Float32Col(shape=(2,))
 
@@ -92,10 +92,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         row = table.row
 
 
-        if reconstruct:
-            fmode = 'a'
-        else:
-            fmode = 'r'
+
 
         total = 0
         throwing_away = 0
@@ -105,10 +102,24 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
             # but without the_simulation.h5 file
             try:
                 template = '%s/the_simulation.h5' % d
-                # open only in append mode if reconstructing direction
+                # open only in append mode if reconstructing direction and if there is
+                # a sim.py.e1091201 file in the directory, which indicates that the
+                # simulation is done running and we can safely open the file in 'a' mode
+                list_of_files = os.listdir(d)
+                re_sim = re.compile('sim\.py\.e[0-9]*')
+                reconstruct_local = False
+                if reconstruct:
+                    if np.count_nonzero([re_sim.match(x) for x in list_of_files])>0:
+                        reconstruct_local = True
+
+
+                if reconstruct_local:
+                    fmode = 'a'
+                else:
+                    fmode = 'r'
                 with tables.open_file(template, fmode) as data:
-                    if IGNORE_COINCIDENCES and reconstruct: # only possible if there is 1
-                        # station (for now)
+                    if IGNORE_COINCIDENCES and reconstruct_local:
+                        # only possible if there is 1 station (for now)
 
                         station_path = '/cluster_simulations/station_%s/' % STATIONS[0]
                         station = STATIONS[0]
@@ -155,6 +166,13 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                                        MAX_VOLTAGE] = MAX_VOLTAGE
                                     pulseheights[:] = pulseheights_local
 
+                                    if np.count_nonzero(
+                                            (pulseheights>((4096*0.57/10e3)*1e3-1))
+                                            &
+                                            (pulseheights<((4096*0.57/10e3)*1e3+1))
+                                            )>0:
+                                        throwing_away += 1
+                                        continue
                                     # write to new h5 file
                                     row['traces'] = trace
                                     row['N'] = 1
@@ -226,6 +244,15 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         pulseheights_local = station_event['pulseheights']
                                         pulseheights_local[pulseheights_local>MAX_VOLTAGE] = MAX_VOLTAGE
                                         pulseheights[station, :] = station_event['pulseheights']
+                                    # due to stupidity I set the cap to 4096*0.57/10e3
+                                    # mV instead of 4096*0.57/1e3 ...
+                                if np.count_nonzero(
+                                        (pulseheights>((4096*0.57/10e3)*1e3-1))
+                                        &
+                                        (pulseheights<((4096*0.57/10e3)*1e3+1))
+                                        )>0:
+                                    throwing_away += 1
+                                    continue
                                 row['traces'] = trace
                                 row['N'] = coin['N']
                                 row['azimuth'] = azimuth
@@ -245,6 +272,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
                                 row.append()
                                 total += 1
+                            else:
+                                throwing_away += 1
             except Exception as e:
                 if verbose:
                     print('Error occurred in %s' % (d))
