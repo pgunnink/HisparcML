@@ -46,6 +46,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param max_samples: ratio of the number of samples to cut (use only with uniform_dist=True)
     :param CHUNK_SIZE: size of individual CHUNKS that are writte together to disk
     :param verbose: if True write output and create plots
+    :param skip_nonreconstructed: if True ignore the events that could not be
+    reconstructed using the standard sapphire reconstruction
     :return: nothing
     """
     start_time = timeit.default_timer()
@@ -180,7 +182,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
                             timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
-                            if np.isnan(row['zenith_rec'])
+                            if np.isnan(row['zenith_rec']):
                                 rec_z_temp[i_chunk] = np.nan
                                 rec_a_temp[i_chunk] = np.nan
                             else:
