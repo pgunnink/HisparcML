@@ -27,7 +27,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, rossi_dist=False,
                              no_gamma_peak=False, trigger=3, energy_low=9.9**16.5, 
                              energy_high=10.1**16.5, verbose=True,
-                             max_samples=1, CHUNK_SIZE=10**4):
+                             max_samples=1, CHUNK_SIZE=10**4, skip_nonreconstructed=True):
     """
     read a h5 file made by merge.py from all individual simulation files
 
@@ -167,6 +167,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         # and filter on zenith angle (if a distribution is wanted)
                         idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
                         if filled[idx]<min_val[idx] and i<total_entries_max:
+                            if np.isnan(row['zenith_rec']) and skip_nonreconstructed:
+                                continue
+
+
+
                             # read neccessary data from h5 file and create the
                             # temporary chunks
                             t = row['traces'].reshape((4*N_stations,80))
@@ -175,7 +180,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
                             timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
-                            if np.isnan(row['zenith_rec']):
+                            if np.isnan(row['zenith_rec'])
                                 rec_z_temp[i_chunk] = np.nan
                                 rec_a_temp[i_chunk] = np.nan
                             else:
