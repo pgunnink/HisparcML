@@ -195,7 +195,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             zenith_temp[i_chunk] = row['zenith']
                             azimuth_temp[i_chunk] = row['azimuth']
                             energy_temp[i_chunk] = row['energy']
-                            core_distance_temp[i_chunk] = row['core_distace']
+                            core_distance_temp[i_chunk] = row['core_distance']
                             i_chunk += 1
                             i += 1
                             # when we have gathered enough events write them all to
