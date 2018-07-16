@@ -231,7 +231,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 zenith[i - i_chunk:i] = zenith_temp[:i_chunk,]
                 azimuth[i - i_chunk:i] = azimuth_temp[:i_chunk,]
                 energy[i - i_chunk:i] = energy_temp[:i_chunk,]
-                core_distance[i - CHUNK_SIZE:i] = core_distance_temp[:i_chunk,]
+                core_distance[i - i_chunk:i] = core_distance_temp[:i_chunk,]
 
             if verbose:
                 print('Filling datasets %s'% (timeit.default_timer() - start_time))
