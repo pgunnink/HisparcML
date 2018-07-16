@@ -85,6 +85,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                      dtype='float32')
             energy = f.create_dataset('energies', shape=(entries,), chunks=(CHUNK_SIZE,),
                                      dtype='float32')
+            core_distance = f.create_dataset('core_distance', shape=(entries,),
+                                             chunks=(CHUNK_SIZE,), dtype='float32')
 
             available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
             filled = np.zeros(17)
@@ -154,7 +156,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             zenith_temp = np.empty([CHUNK_SIZE])
             azimuth_temp = np.empty([CHUNK_SIZE])
             energy_temp = np.empty([CHUNK_SIZE])
-
+            core_distance_temp = np.empty([CHUNK_SIZE])
 
 
             i = 0
@@ -193,7 +195,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             zenith_temp[i_chunk] = row['zenith']
                             azimuth_temp[i_chunk] = row['azimuth']
                             energy_temp[i_chunk] = row['energy']
-
+                            core_distance_temp[i_chunk] = row['core_distace']
                             i_chunk += 1
                             i += 1
                             # when we have gathered enough events write them all to
@@ -213,6 +215,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                 zenith[i - CHUNK_SIZE:i] = zenith_temp
                                 azimuth[i - CHUNK_SIZE:i] = azimuth_temp
                                 energy[i - CHUNK_SIZE:i] = energy_temp
+                                core_distance[i - CHUNK_SIZE:i] = core_distance_temp
                             filled[idx] += 1 # in order to keep track of zenith
                             # distribution
                         elif i>total_entries_max:
@@ -227,7 +230,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 pulseheights[i - i_chunk:i,] = pulseheights_temp[:i_chunk,]
                 zenith[i - i_chunk:i] = zenith_temp[:i_chunk,]
                 azimuth[i - i_chunk:i] = azimuth_temp[:i_chunk,]
-                energy[i - i_chunk:i] = energy[:i_chunk,]
+                energy[i - i_chunk:i] = energy_temp[:i_chunk,]
+                core_distance[i - CHUNK_SIZE:i] = core_distance_temp[i:i_chunk,]
 
             if verbose:
                 print('Filling datasets %s'% (timeit.default_timer() - start_time))
@@ -243,6 +247,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             zenith.resize(i,axis=0)
             azimuth.resize(i,axis=0)
             energy.resize(i, axis=0)
+            core_distance.resize(i, axis=0)
             new_entries = i
 
             if find_mips:
@@ -348,5 +353,6 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             zenith[:] = zenith[:][permutation]
             azimuth[:] = azimuth[:][permutation]
             energy[:] = energy[:][permutation]
+            core_distance[:] = core_distance[:][permutation]
             if verbose:
                 print('Shuffling everything %s'% (timeit.default_timer() - start_time))
