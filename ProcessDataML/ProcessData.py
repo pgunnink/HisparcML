@@ -25,8 +25,8 @@ import matplotlib.pyplot as plt
 
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, rossi_dist=False,
-                             no_gamma_peak=False, trigger=3, energy_low=9.9**16.5, 
-                             energy_high=10.1**16.5, verbose=True,
+                             no_gamma_peak=False, trigger=3, trigger_max=3,
+                             energy_low=9.9**16.5, energy_high=10.1**16.5, verbose=True,
                              max_samples=1, CHUNK_SIZE=10**4, skip_nonreconstructed=True):
     """
     read a h5 file made by merge.py from all individual simulation files
@@ -41,6 +41,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param uniform_dist: if True force uniform distribution
     :param no_gamma_peak: if using simulation data, which has no big first peak in the pulseheight histogram
     :param trigger: the number of detectors that must have triggered
+    :param trigger_max: maximum number of detectors that have triggered
     :param energy_low: low energy cut
     :param energy_high: high energy cut
     :param max_samples: ratio of the number of samples to cut (use only with uniform_dist=True)
@@ -165,7 +166,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             # loop over all entries and fill them
             for row in data.root.traces.Traces.iterrows():
                 # first filter on the trigger
-                if np.count_nonzero(row['timings']!=0.) >= trigger:
+                if np.count_nonzero(row['timings']!=0.) >= trigger \
+                        and np.count_nonzero(row['timings']!=0.) <= trigger_max:
                     # now filter on energy
                     if row['energy']>=energy_low and row['energy']<=energy_high:
                         # and filter on zenith angle (if a distribution is wanted)
