@@ -178,11 +178,11 @@ def baseModelNoTraces(N_stations, features, length_trace=80, trace_filter_1=64,
 
 
 def performanceSapphire(model_prediction, sapphire_reconstruction, actual_direction):
-    error_sapphire = angle_between_two_vectors(model_prediction, sapphire_reconstruction)
+    error_sapphire = angle_between_two_vectors(actual_direction, sapphire_reconstruction)
     error_sapphire = np.compress(~np.isnan(error_sapphire), error_sapphire)
 
-    print('Sapphire reconstruction mean angle of error %.4f, std %.4f' % (
-    np.mean(error_sapphire), np.std(error_sapphire)))
+    print('Sapphire reconstruction mean angle between  %.4f, std %.4f' % ( np.mean(
+        error_sapphire), np.std(error_sapphire)))
 
     z_true, a_true = cartestian_to_azimuth_zenith(actual_direction[:, 0],
                                                   actual_direction[:, 1],
@@ -208,7 +208,7 @@ def performanceSapphire(model_prediction, sapphire_reconstruction, actual_direct
     plt.title('Difference azimuth using Sapphire reconstruction')
 
 
-def plotGeneral(model_prediction, actual_direction):
+def plotGeneral(model_prediction, actual_direction, plot_zenith_bins=True):
     z_true, a_true = cartestian_to_azimuth_zenith(actual_direction[:, 0],
                                                   actual_direction[:, 1],
                                                   actual_direction[:, 2])
@@ -233,6 +233,10 @@ def plotGeneral(model_prediction, actual_direction):
     plt.subplot(223)
     h = plt.hist(np.degrees(z), bins=np.degrees(np.linspace(0, 0.5 * np.pi, 30)))
     plt.title('calculated zenith')
+    if plot_zenith_bins:
+        available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
+        for av_z in available_zeniths:
+            plt.axvline(av_z, color='r')
     plt.subplot(222)
     h = plt.hist(np.degrees(a_true), bins=np.degrees(np.linspace(-np.pi, np.pi, 30)))
     plt.title('actual azimuth')
@@ -333,6 +337,41 @@ def plotPerMips(model_prediction, actual_direction, idx_per_mip, highest_mip=10)
   plt.title('Error as function of MiP')
   plt.xlabel('MiP')
   plt.ylabel('Mean error in degrees')
+
+
+def comparePerMips(model_prediction, sapphire_prediction, actual_direction, idx_per_mip,
+                   highest_mip=10):
+    mips = 0
+    error_per_mip = []
+    std_per_mip = []
+    error_per_mip_sapphire = []
+    std_per_mip_sapphire = []
+    for idx in idx_per_mip:
+        angle = angle_between_two_vectors(model_prediction[idx], actual_direction[idx,])
+        angle = np.reshape(angle, (-1))
+        angle = np.compress(~np.isnan(angle), angle)
+        error_per_mip.append(np.mean(angle))
+        std_per_mip.append(np.std(angle))
+
+        angle = angle_between_two_vectors(sapphire_prediction[idx],
+                                          actual_direction[idx,])
+        angle = np.reshape(angle, (-1))
+        angle = np.compress(~np.isnan(angle), angle)
+        error_per_mip_sapphire.append(np.mean(angle))
+        std_per_mip_sapphire.append(np.std(angle))
+
+        mips += 1
+    fig = plt.figure(figsize=(10, 5))
+    axes = plt.axes()
+    plt.errorbar(range(highest_mip), error_per_mip, yerr=std_per_mip,
+                 label='Neural network')
+    plt.errorbar(range(highest_mip), error_per_mip_sapphire, yerr=std_per_mip_sapphire,
+                 label='Sapphire')
+
+    axes.legend()
+    plt.title('Error as function of MiP')
+    plt.xlabel('MiP')
+    plt.ylabel('Mean error in degrees')
 
 def compareTwoModels(model1_prediction, model2_prediction, actual_prediction):
   plt.figure(figsize=(15,5))
