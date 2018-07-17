@@ -147,7 +147,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 total_entries_max = entries*max_samples
             if verbose:
                 plt.figure()
-                plt.hist(data.root.traces.Traces.col('zenith'), bins=50)
+                plt.hist(data.root.traces.Traces.col('zenith'), bins=100)
                 plt.savefig('zenith_dist.png')
                 print('Maximum number of entries: %s' % total_entries_max)
 
