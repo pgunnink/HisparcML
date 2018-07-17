@@ -26,7 +26,8 @@ import matplotlib.pyplot as plt
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, rossi_dist=False,
                              no_gamma_peak=False, trigger=3, trigger_max=3,
-                             energy_low=9.9**16.5, energy_high=10.1**16.5, verbose=True,
+                             zenith_weights=None, energy_low=9.9**16.5,
+                             energy_high=10.1**16.5, verbose=True,
                              max_samples=1, CHUNK_SIZE=10**4, skip_nonreconstructed=True):
     """
     read a h5 file made by merge.py from all individual simulation files
@@ -49,6 +50,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     :param verbose: if True write output and create plots
     :param skip_nonreconstructed: if True ignore the events that could not be
     reconstructed using the standard sapphire reconstruction
+    :param zenith_weights: a list of 17 weights to be used for a custom distribution of
+    the zenith angles (not compatible with rossi_dist, uniform_dist or max_samples)
     :return: nothing
     """
     start_time = timeit.default_timer()
@@ -108,7 +111,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 events = np.array(events)
                 if verbose:
                     print({k:v for k, v in zip(available_zeniths,events)})
-                min_val = np.ones(available_zeniths.shape)*np.amin(events)*max_samples
+                max_val = np.ones(available_zeniths.shape)*np.amin(events)*max_samples
                 total_entries_max = entries
             elif rossi_dist:
                 events = []
@@ -138,18 +141,32 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                  label='New dist')
                         plt.legend()
                         plt.savefig('New_dist.png')
-                    min_val = new_dist(np.radians(available_zeniths), scale)*max_samples
+                    max_val = new_dist(np.radians(available_zeniths), scale)*max_samples
                     total_entries_max = entries
-
-
+            elif zenith_weights is not None:
+                events = []
+                for angle in available_zeniths:
+                    settings = {'zenith_upper_bound': np.radians(angle + 1),
+                                'angle_lower_bound': np.radians(angle - 1),
+                                'energy_lower_bound': energy_low,
+                                'energy_upper_bound': energy_high}
+                    res = data.root.traces.Traces.read_where(
+                        "(zenith>angle_lower_bound) & (zenith<zenith_upper_bound) & "
+                        "(energy > energy_lower_bound) & (energy < energy_upper_bound)",
+                        settings)
+                    events.append(len(res))
+                events = np.array(events)
+                max_val = events*zenith_weights
+                total_entries_max = entries
+                if verbose:
+                    plt.figure()
+                    plt.plot(max_val, 'x-')
+                    plt.savefig('zenith_dist.png')
+                    print('Maximum number of entries: %s' % total_entries_max)
             else:
-                min_val = np.ones(available_zeniths.shape)*entries
+                max_val = np.ones(available_zeniths.shape)*entries
                 total_entries_max = entries*max_samples
-            if verbose:
-                plt.figure()
-                plt.hist(data.root.traces.Traces.col('zenith'), bins=100)
-                plt.savefig('zenith_dist.png')
-                print('Maximum number of entries: %s' % total_entries_max)
+
 
             # create temporary chunk sizes that can then be written to the h5 file
             traces_temp = np.empty([CHUNK_SIZE, N_stations*4, 80])
@@ -176,7 +193,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     if row['energy']>=energy_low and row['energy']<=energy_high:
                         # and filter on zenith angle (if a distribution is wanted)
                         idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
-                        if filled[idx]<min_val[idx] and i<total_entries_max:
+                        if filled[idx]<max_val[idx] and i<total_entries_max:
                             if np.isnan(row['zenith_rec']) and skip_nonreconstructed:
                                 continue
 
