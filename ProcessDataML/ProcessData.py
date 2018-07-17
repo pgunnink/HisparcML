@@ -123,9 +123,10 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         settings)
                     events.append(len(res))
                 events = np.array(events)
-                scale = events[5]/.19
+                scale = events[5]/.19*0.9
                 new_dist = lambda theta,scaling : np.sin(theta)*np.cos(
                     theta)**8*scaling+0.1*scaling
+
                 while ((events - new_dist(np.radians(available_zeniths),scale))<0).any():
                     scale *= 0.9
                 else:
@@ -145,6 +146,9 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 min_val = np.ones(available_zeniths.shape)*entries
                 total_entries_max = entries*max_samples
             if verbose:
+                plt.figure()
+                plt.hist(data.root.traces.Traces.col('zenith'), bins=50)
+                plt.savefig('zenith_dist.png')
                 print('Maximum number of entries: %s' % total_entries_max)
 
             # create temporary chunk sizes that can then be written to the h5 file
