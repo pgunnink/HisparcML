@@ -6,7 +6,7 @@ import pdb
 import matplotlib
 from fast_histogram import histogram1d
 import timeit
-
+from tqdm import tqdm
 
 # determine where to plot to
 try:
@@ -21,14 +21,15 @@ except NameError:
 import matplotlib.pyplot as plt
 
 
-    
 
 def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              find_mips=True, uniform_dist=False, rossi_dist=False,
                              no_gamma_peak=False, trigger=3, trigger_max=3,
                              zenith_weights=None, energy_low=9.9**16.5,
                              energy_high=10.1**16.5, verbose=True,
-                             max_samples=1, CHUNK_SIZE=10**4, skip_nonreconstructed=True):
+                             max_samples=1, CHUNK_SIZE=10**4,
+                             skip_nonreconstructed=True, photontimes=False,
+                             photontimes_func=None):
     """
     read a h5 file made by merge.py from all individual simulation files
 
@@ -91,6 +92,10 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                      dtype='float32')
             core_distance = f.create_dataset('core_distance', shape=(entries,),
                                              chunks=(CHUNK_SIZE,), dtype='float32')
+            if photontimes:
+                photontimes = f.create_dataset('photontimes', shape=(entries, N_stations*4, 80),
+                                      chunks=(CHUNK_SIZE, N_stations*4, 80),
+                                      dtype='float32')
 
             available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
             filled = np.zeros(17)
@@ -170,6 +175,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
             # create temporary chunk sizes that can then be written to the h5 file
             traces_temp = np.empty([CHUNK_SIZE, N_stations*4, 80])
+            photontimes_temp = np.empty([CHUNK_SIZE, N_stations*4, 80])
             labels_temp = np.empty([CHUNK_SIZE, 3])
             timings_temp = np.empty([CHUNK_SIZE, N_stations*4])
             pulseheights_temp = np.empty([CHUNK_SIZE, N_stations*4])
@@ -185,25 +191,32 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             i_chunk = 0
             chunk_count = 0
             # loop over all entries and fill them
-            for row in data.root.traces.Traces.iterrows():
+            for row in tqdm(data.root.traces.Traces.iterrows(), total=len(data.root.traces.Traces)):
                 # first filter on the trigger
-                if np.count_nonzero(row['timings']!=0.) >= trigger \
-                        and np.count_nonzero(row['timings']!=0.) <= trigger_max:
-                    # now filter on energy
-                    if row['energy']>=energy_low and row['energy']<=energy_high:
+                if np.count_nonzero(row['timings']!=0.) >= trigger and \
+                        np.count_nonzero(row['timings']!=0.) <= trigger_max and row[
+                    'energy'] >= energy_low and row['energy'] <= energy_high  :
+                        # now filter on energy
                         # and filter on zenith angle (if a distribution is wanted)
                         idx = (np.abs(np.radians(available_zeniths) - row['zenith'])).argmin()
                         if filled[idx]<max_val[idx] and i<total_entries_max:
                             if np.isnan(row['zenith_rec']) and skip_nonreconstructed:
                                 continue
 
-
-
+                            if photontimes:
+                                photontimes_temp[i_chunk,:] = row['photontimes']
                             # read neccessary data from h5 file and create the
                             # temporary chunks
-                            t = row['traces'].reshape((4*N_stations,80))
-                            t = np.log10(-1 * t  + 1)
+                            if photontimes_func is None:
+                                t = row['traces'].reshape((4*N_stations,80))
+                            else:
+                                t = np.zeros((4*N_stations,80))
+                                for i_d, trace_detector in enumerate(photontimes_temp[
+                                                                     i_chunk,:]):
+                                    t[i_d,:] = photontimes_func(trace_detector)
 
+
+                            t = np.log10(-1 * t  + 1)
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
                             timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
@@ -219,6 +232,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             azimuth_temp[i_chunk] = row['azimuth']
                             energy_temp[i_chunk] = row['energy']
                             core_distance_temp[i_chunk] = row['core_distance']
+
                             i_chunk += 1
                             i += 1
                             # when we have gathered enough events write them all to
@@ -230,6 +244,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                 i_chunk = 0
 
                                 traces[i-CHUNK_SIZE:i,] = traces_temp
+                                if photontimes:
+                                    photontimes[i - CHUNK_SIZE:i, ] = photontimes_temp
                                 labels[i-CHUNK_SIZE:i,] = labels_temp
                                 input_features[i - CHUNK_SIZE:i,:,0] = timings_temp
                                 rec_z[i - CHUNK_SIZE:i] = rec_z_temp
@@ -246,6 +262,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             # make sure to write the last, half-filled chunk as well
             if i_chunk>0: # make sure that the last chunk is actually filled
                 traces[i - i_chunk:i,] = traces_temp[:i_chunk,]
+                if photontimes:
+                    photontimes[i - i_chunk:i, ] = photontimes_temp[:i_chunk, ]
                 labels[i - i_chunk:i,] = labels_temp[:i_chunk,]
                 input_features[i - i_chunk:i,:,0] = timings_temp[:i_chunk,]
                 rec_z[i - i_chunk:i] = rec_z_temp[:i_chunk,]
@@ -262,6 +280,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
             # remove part of the array that was not filled
             traces.resize(i,axis=0)
+            if photontimes:
+                photontimes.resize(i, axis=0)
             labels.resize(i,axis=0)
             input_features.resize(i,axis=0)
             rec_z.resize(i,axis=0)
@@ -367,6 +387,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             # shuffle everything
             permutation = np.random.permutation(new_entries)
             traces[:] = np.log10((10**traces[:][permutation,:]-1) / mpv + 1)
+            if photontimes:
+                photontimes = photontimes[:][permutation,:]
             labels[:] = labels[:][permutation,:]
             input_features[:] = input_features[:][permutation,:]
             if find_mips:
