@@ -6,7 +6,7 @@ from sapphire import HiSPARCStations
 from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
 from sapphire.analysis.reconstructions import ReconstructSimulatedEvents, \
     ReconstructSimulatedCoincidences
-from sapphire.utils import pbar
+from tqdm import tqdm
 import pdb
 
 MAX_VOLTAGE = 4096*0.57
@@ -20,7 +20,8 @@ def filter_timings(timings):
 
 
 def merge(stations, output = None, orig_stations=None, directory='.', verbose=True,
-          overwrite=False, reconstruct=False):
+          overwrite=False, reconstruct=False, save_coordinates=False,
+          only_original=False, coincidences=1, cluster=None, photontimes=False):
     """
     Merges the simulation data from individual 'the_simulation.h5' files from the
     core.* directories inside a certain directory
@@ -31,6 +32,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                             default this is None, indicating that the stations are the
                             same
     :param directory:       The directory to look in, by default the current directory
+    :param only_original:   If True only look for directories in the format coreXX
     :return:
     """
 
@@ -56,9 +58,13 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
     combined_regex = "(" + ")|(".join([str(a) for a in STATIONS]) + ")"
     N = len(STATIONS)
-    cluster = HiSPARCStations(STATIONS)
+    if cluster is None:
+        cluster = HiSPARCStations(STATIONS)
 
-    core_re = re.compile(r"core.*")
+    if only_original:
+        core_re = re.compile(r"core.*\d$")
+    else:
+        core_re = re.compile(r"core.*")
     dirs = [os.path.join(directory, o) for o in os.listdir(directory) if
             os.path.isdir(os.path.join(directory, o)) and core_re.match(o) is not None]
 
@@ -78,6 +84,10 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         zenith_rec = tables.Float32Col(dflt=np.nan)
         core_distance = tables.Float32Col()
         core_position = tables.Float32Col(shape=(2,))
+        photontimes = tables.Float32Col(shape=(4, 80,))
+        if save_coordinates:
+            inslag_coordinates = tables.Float32Col((4,2))
+            n_electron_muons = tables.Int16Col(shape=4)
 
 
 
@@ -97,7 +107,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         total = 0
         throwing_away = 0
         # loop over all core* directories
-        for d in pbar(dirs):
+        for d in tqdm(dirs):
             # wrap in try except block, because sometimes a core* dir exists,
             # but without the_simulation.h5 file
             try:
@@ -126,11 +136,17 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                         rec = ReconstructSimulatedEvents(data, station_path, station,
                                                          verbose=False, overwrite=overwrite,
                                                          progress=False)
-                        rec.reconstruct_and_store()
+                        try:
+                            rec.reconstruct_and_store()
+                        except:
+                            if verbose:
+                                print('Already reconstructed')
                         recs = data.get_node(station_path).reconstructions
                     if IGNORE_COINCIDENCES: # create one entry for every event in every
                         #  station
                         for station in data.root.cluster_simulations:
+                            if photontimes:
+                                photontimes_table = station.photontimes
                             for station_event in station.events:
 
                                 timings_station = np.array(
@@ -174,6 +190,14 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         throwing_away += 1
                                         continue
                                     # write to new h5 file
+                                    if photontimes:
+                                        row_photontimes = np.zeros((4,80))
+                                        for i, idx in enumerate(station_event['photontimes_idx']):
+                                            pt = photontimes_table[i]
+                                            local_hist, _ = np.histogram(pt,
+                                                                       bins=np.linspace(0,200,81))
+                                            row['photontimes'][i, :] = local_hist
+
                                     row['traces'] = trace
                                     row['N'] = 1
                                     row['azimuth'] = azimuth
@@ -191,26 +215,41 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                     row['pulseheights'] = pulseheights
                                     row['core_distance'] = distance_core
                                     row['id'] = total
+
+                                    if save_coordinates:
+                                        row['inslag_coordinates'] = station_event[
+                                            'coordinates']
+                                        row['n_electron_muons'] = \
+                                            [station_event["n_electrons1"] +
+                                             station_event["n_muons1"],
+                                             station_event["n_electrons2"] +
+                                             station_event["n_muons2"],
+                                             station_event["n_electrons3"] +
+                                             station_event["n_muons3"],
+                                             station_event["n_electrons4"] +
+                                             station_event["n_muons4"]]
                                     row.append()
                                     total += 1
                                 else:
                                     throwing_away += 1
                         data.close()
                     else:
-                        if reconstruct:
+                        if reconstruct and reconstruct_local:
+
                             rec = ReconstructSimulatedCoincidences(data,
                                                                    destination='reconstructions',
-                                                                   overwrite=overwrite)
+                                                                   overwrite=overwrite,
+                                                                   progress=False)
                             rec.reconstruct_and_store()
                             recs = data.get_node('/coincidences/reconstructions')
                         # recreating coincidences, so per coincidence a list of the
                         # traces etc. per station
 
-                        # for evey incoming shower the coincidences are saved for some
+                        # for every incoming shower the coincidences are saved for some
                         # reason, but only if there is a hit the timestamp>0
                         for coin in data.root.coincidences.coincidences.where(
                                 'timestamp>0'):
-                            if coin['N'] >= 1:
+                            if coin['N'] >= coincidences:
                                 trace = np.zeros([len(STATIONS), 4, 80], dtype=np.float32)
                                 timings = np.zeros([len(STATIONS), 4], dtype=np.float32)
                                 pulseheights = np.zeros([len(STATIONS), 4], dtype=np.int16)
@@ -244,8 +283,8 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         pulseheights_local = station_event['pulseheights']
                                         pulseheights_local[pulseheights_local>MAX_VOLTAGE] = MAX_VOLTAGE
                                         pulseheights[station, :] = station_event['pulseheights']
-                                    # due to stupidity I set the cap to 4096*0.57/10e3
-                                    # mV instead of 4096*0.57/1e3 ...
+                                # due to stupidity I set the cap to 4096*0.57/10e3
+                                # mV instead of 4096*0.57/1e3 ...
                                 if np.count_nonzero(
                                         (pulseheights>((4096*0.57/10e3)*1e3-1))
                                         &
