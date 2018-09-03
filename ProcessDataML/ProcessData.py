@@ -29,7 +29,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              energy_high=10.1**16.5, verbose=True,
                              max_samples=1, CHUNK_SIZE=10**4,
                              skip_nonreconstructed=True, photontimes=False,
-                             photontimes_func=None):
+                             photontimes_func=None, recreate_timings=False):
     """
     read a h5 file made by merge.py from all individual simulation files
 
@@ -207,19 +207,37 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                 photontimes_temp[i_chunk,:] = row['photontimes']
                             # read neccessary data from h5 file and create the
                             # temporary chunks
+
+                            timings_temp[i_chunk, :] = row['timings'].reshape(
+                                (4 * N_stations,))
+
                             if photontimes_func is None:
                                 t = row['traces'].reshape((4*N_stations,80))
                             else:
+                                old_traces = row['traces'].reshape((4*N_stations,80))
                                 t = np.zeros((4*N_stations,80))
                                 for i_d, trace_detector in enumerate(photontimes_temp[
                                                                      i_chunk,:]):
                                     t[i_d,:] = photontimes_func(trace_detector)
+                                    old_trigger_delay = 0
+                                    for i_local, value in enumerate(old_traces[i_d,:]):
+                                        if value < -30.0:
+                                            old_trigger_delay = i_local * 2.5
+                                            break
+                                    new_trigger_delay = 0
+                                    for i_local, value in enumerate(t[i_d,:]):
+                                        if value < -30.0:
+                                            new_trigger_delay = i_local * 2.5
+                                            break
+                                    diff = new_trigger_delay - old_trigger_delay
+                                    timings_temp[i_chunk, i_d] += diff
 
 
                             t = np.log10(-1 * t  + 1)
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
-                            timings_temp[i_chunk,:] = row['timings'].reshape((4*N_stations,))
+
+
                             if np.isnan(row['zenith_rec']):
                                 rec_z_temp[i_chunk] = np.nan
                                 rec_a_temp[i_chunk] = np.nan
@@ -388,7 +406,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
             permutation = np.random.permutation(new_entries)
             traces[:] = np.log10((10**traces[:][permutation,:]-1) / mpv + 1)
             if photontimes:
-                photontimes = photontimes[:][permutation,:]
+                photontimes[:] = photontimes[:][permutation,:]
             labels[:] = labels[:][permutation,:]
             input_features[:] = input_features[:][permutation,:]
             if find_mips:

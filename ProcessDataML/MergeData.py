@@ -84,7 +84,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         zenith_rec = tables.Float32Col(dflt=np.nan)
         core_distance = tables.Float32Col()
         core_position = tables.Float32Col(shape=(2,))
-        photontimes = tables.Float32Col(shape=(4, 80,))
+        photontimes = tables.Float32Col(shape=(len(STATIONS), 4, 80,))
         if save_coordinates:
             inslag_coordinates = tables.Float32Col((4,2))
             n_electron_muons = tables.Int16Col(shape=4)
@@ -193,10 +193,11 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                     if photontimes:
                                         row_photontimes = np.zeros((4,80))
                                         for i, idx in enumerate(station_event['photontimes_idx']):
-                                            pt = photontimes_table[i]
+                                            pt = photontimes_table[idx]
                                             local_hist, _ = np.histogram(pt,
                                                                        bins=np.linspace(0,200,81))
-                                            row['photontimes'][i, :] = local_hist
+                                            row_photontimes[i,:] = local_hist
+                                        row['photontimes'] = row_photontimes
 
                                     row['traces'] = trace
                                     row['N'] = 1
