@@ -85,6 +85,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         core_distance = tables.Float32Col()
         core_position = tables.Float32Col(shape=(2,))
         photontimes = tables.Float32Col(shape=(len(STATIONS), 4, 80,))
+        arrivaltimes_particles = tables.Float32Col(shape=(len(STATIONS), 4))
         if save_coordinates:
             inslag_coordinates = tables.Float32Col((4,2))
             n_electron_muons = tables.Int16Col(shape=4)
@@ -152,7 +153,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                 timings_station = np.array(
                                     [station_event['t1'], station_event['t2'],
                                      station_event['t3'], station_event['t4']])
-                                # due to a bug in the GEANT simulation sometimes a timing
+                                # due to a bug in the simulation sometimes a timing
                                 #  of -999 is included, so filter these out (bug is
                                 # fixed now, so should no longer be neccessary unless
                                 # when working with old data)
@@ -190,14 +191,41 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         throwing_away += 1
                                         continue
                                     # write to new h5 file
+                                    particle_timings = np.zeros((4,))
+                                    earliest_particle = np.inf
+                                    non_zero_idx = []
+                                    for i, (trace, t0) in enumerate(zip(trace, timings)):
+                                        old_trigger_delay = 0
+                                        for i_local, value in enumerate(trace):
+                                            if value < -30.0:
+                                                old_trigger_delay = i_local * 2.5
+                                                break
+                                        else:
+                                            particle_timings[i] = np.nan
+                                            continue
+                                        non_zero_idx.append(i)
+                                        particle_timings[i] = timings[i] - old_trigger_delay
+                                        if particle_timings[i] < earliest_particle:
+                                            earliest_particle = particle_timings[i]
+                                    particle_timings -= np.nanmin(particle_timings)
+                                    row['arrivaltimes_particles'] = particle_timings
                                     if photontimes:
                                         row_photontimes = np.zeros((4,80))
                                         for i, idx in enumerate(station_event['photontimes_idx']):
-                                            pt = photontimes_table[idx]
+                                            if np.isnan(particle_timings[i]): #there is
+                                                #  no incident particle or the
+                                                # particles that were incidident did
+                                                # not produce a sufficiently high trace
+                                                #  to trigger
+                                                continue
+                                            pt = photontimes_table[idx] + \
+                                                 particle_timings[i]
                                             local_hist, _ = np.histogram(pt,
                                                                        bins=np.linspace(0,200,81))
                                             row_photontimes[i,:] = local_hist
                                         row['photontimes'] = row_photontimes
+
+
 
                                     row['traces'] = trace
                                     row['N'] = 1
