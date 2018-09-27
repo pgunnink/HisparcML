@@ -7,7 +7,9 @@ import numpy as np
 def metric_degrees_difference(y_true, y_pred):
     """
     A Keras metric that determines the angle in degrees between two vectors in cartesian
-    space.
+    space. This is more of an indication, because really we should rescale the
+    histogram etc, but it does give a sort of meaningful number during training,
+    which is nice.
     Only works with tensorflow
     :param y_true: tensor of shape (?,3) with actual directions
     :param y_pred: tensor of shape (?,3) with supposed directions

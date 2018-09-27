@@ -8,7 +8,9 @@ from fast_histogram import histogram1d
 import timeit
 from tqdm import tqdm
 
-# determine where to plot to
+# determine where to plot to (this works by trying to acces some property of the
+# IPython configuration and checking if it is called Google Colab. If this property
+# does not exist it throws an error.
 try:
     cfg = get_ipython().config 
     if cfg['IPKernelApp']['kernel_class'] == 'google.colab._kernel.Kernel':
@@ -29,12 +31,24 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                              energy_high=10.1**16.5, verbose=True,
                              max_samples=1, CHUNK_SIZE=10**4,
                              skip_nonreconstructed=True, photontimes=False,
-                             photontimes_func=None, recreate_timings=False):
+                             photontimes_func=None):
     """
-    read a h5 file made by merge.py from all individual simulation files
+    Reads a h5 file made by merge.py from all individual simulation files
 
-    traces (and resulting variables pulseheights and pulseintegras) are scaled by the
+    Traces (and resulting variables pulseheights and pulseintegras) are scaled by the
     position of the mip peak
+
+    Photontimes can be recalculated now using a new funciton passsed to
+    photontimes_func. Timings are also recreated automatically. If recreating from the
+    photontimes the traces are already shifted relative to each other.
+
+    PS: Deze functie is een beetje een draak geworden en miscschien is het makkelijker
+    om zelf even wat in elkaar te klussen :) Je moet alleen wel oppassen dat je niet
+    tegen geheugen limitaties aan gaat lopen, want als je per event meerdere stations
+    hebt dan gaat het hard met het geheugengebruik. Ik liep in het begin tegen
+    geheugenproblemen aan, en dan moet je eerst alles in een h5 file zetten zoals hier,
+    en die h5 file geef je dan direct aan Keras. Je moet dan wel al je pre-proccessing
+    al gedaan hebben, dus daarom heb ik dat in deze functie gegoten.
 
     :param file_location: location of h5 file made by merge.py
     :param new_file_location: location of h5 file made by read_sapphire_simulation
@@ -53,13 +67,16 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
     reconstructed using the standard sapphire reconstruction
     :param zenith_weights: a list of 17 weights to be used for a custom distribution of
     the zenith angles (not compatible with rossi_dist, uniform_dist or max_samples)
+    :param photontimes_func: a function which takes a photontimes histogram of size 80
+    and returns a trace with size 80
+    :param photontimes: if true also saves the photontimes
     :return: nothing
     """
     start_time = timeit.default_timer()
     # Open .h5 file, assuming N_stations stations are in this file, with 4
     # detectors each
     with tables.open_file(file_location, 'r') as data:
-        #entries = len(data.root.traces.Traces) # count number of samples
+        # first filter on energy
         settings = {'energy_lower_bound': energy_low,
                     'energy_upper_bound': energy_high}
         res = data.root.traces.Traces.read_where(
@@ -99,9 +116,11 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
             available_zeniths = np.linspace(0., 60., 17, dtype=np.float32)
             filled = np.zeros(17)
-            # create an uniform distribution by looking at what zenith angle has the lowest
-            #  number of events and using only that amount of angles
+
+            # next create the wanted distribution
             if uniform_dist:
+                # create an uniform distribution by looking at what zenith angle has
+                # the lowest number of events and using only that amount of angles
                 events = []
                 for angle in available_zeniths:
                     settings = {'zenith_upper_bound': np.radians(angle + 1),
@@ -115,10 +134,13 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     events.append(len(res))
                 events = np.array(events)
                 if verbose:
+                    # print the number of entries per zenith angle for debugging
                     print({k:v for k, v in zip(available_zeniths,events)})
                 max_val = np.ones(available_zeniths.shape)*np.amin(events)*max_samples
                 total_entries_max = entries
             elif rossi_dist:
+                # follow the rossi distribution (sin x cos^8 x), plus an offset in
+                # order to include theta=0
                 events = []
                 for angle in available_zeniths:
                     settings = {'zenith_upper_bound': np.radians(angle + 1),
@@ -149,6 +171,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     max_val = new_dist(np.radians(available_zeniths), scale)*max_samples
                     total_entries_max = entries
             elif zenith_weights is not None:
+                # zenith_weights allows you to easily pass your own distribution
                 events = []
                 for angle in available_zeniths:
                     settings = {'zenith_upper_bound': np.radians(angle + 1),
@@ -173,7 +196,12 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 total_entries_max = entries*max_samples
 
 
-            # create temporary chunk sizes that can then be written to the h5 file
+            # create temporary chunk sizes that can then be written to the h5 file (
+            # this is slightly overkill and it might very well be the case that h5py
+            # does this automatically, but I was running into performance and memory
+            # issues and this was an easy solution)
+            # the idea is to create in-memory arrays, fill those and write them in one
+            # go to the h5 file, repeat this until everything if filled
             traces_temp = np.empty([CHUNK_SIZE, N_stations*4, 80])
             photontimes_temp = np.empty([CHUNK_SIZE, N_stations*4, 80])
             labels_temp = np.empty([CHUNK_SIZE, 3])
@@ -210,18 +238,20 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
 
                             timings_temp[i_chunk, :] = row['timings'].reshape(
                                 (4 * N_stations,))
-                            if photontimes_func is None :
+                            if photontimes_func is None:
                                 t = row['traces'].reshape((4*N_stations,80))
                             else:
                                 t = np.zeros((4*N_stations,80))
                                 for i, pt in enumerate(photontimes_temp[i_chunk,:]):
-                                    t[i,:] = photontimes_func(t)
-                                    for i_local, value in enumerate(t):
+                                    t[i,:] = photontimes_func(t[i])
+                                    for i_local, value in enumerate(t[i,:]):
                                         if value < -30.0:
                                             t0_new = i_local * 2.5 + 1000
                                             # you add 1000 because this way down we can
                                             #  distuingish between 0. arrival times and
-                                            #  no arrival times
+                                            #  no arrival times (everything is
+                                            # taken relative to the first arrival time
+                                            # anyway)
                                             break
                                     else:
                                         t0_new = 0
@@ -231,7 +261,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                             traces_temp[i_chunk,:] = t
                             labels_temp[i_chunk,:] = np.array([[row['x'],row['y'],row['z']]])
 
-
+                            # there was some problem with type-casting nan from
+                            # pytables to h5py, so do this way
                             if np.isnan(row['zenith_rec']):
                                 rec_z_temp[i_chunk] = np.nan
                                 rec_a_temp[i_chunk] = np.nan
@@ -239,7 +270,8 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                                 rec_z_temp[i_chunk] = row['zenith_rec']
                                 rec_a_temp[i_chunk] = row['azimuth_rec']
 
-                            pulseheights_temp[i_chunk] = row['pulseheights'].reshape((4*N_stations,))
+                            pulseheights_temp[i_chunk] = row['pulseheights'].reshape((
+                                4*N_stations,))
                             zenith_temp[i_chunk] = row['zenith']
                             azimuth_temp[i_chunk] = row['azimuth']
                             energy_temp[i_chunk] = row['energy']
@@ -272,7 +304,7 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                         elif i>total_entries_max:
                             break
             # make sure to write the last, half-filled chunk as well
-            if i_chunk>0: # make sure that the last chunk is actually filled
+            if i_chunk>0: # first make sure that the last chunk is actually filled
                 traces[i - i_chunk:i,] = traces_temp[:i_chunk,]
                 if photontimes:
                     photontimes[i - i_chunk:i, ] = photontimes_temp[:i_chunk, ]
@@ -315,29 +347,27 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 bins = np.linspace(r[0],r[1],number_of_bins)
                 h = histogram1d(pulseheights_flat, range=r, bins= number_of_bins)
 
-                # plot the pulseheights
+                # plot the pulseheights if wanted
                 if verbose:
                     plt.figure()
                     plt.bar(bins, h, width=(bins[1] - bins[0]))
 
-
-
-
                 del pulseheights_flat # clear some memory
-                find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built search from Sapphire
+                find_m_p_v = FindMostProbableValueInSpectrum(h,bins) # use the in-built
+                #  search from Sapphire
 
-                # if there is no gamma peak than the first guess algorithm fails, so make our own guess
+                # if there is no gamma peak than the first guess algorithm fails,
+                # so make our own guess
                 if no_gamma_peak:
                     mpv_guess = bins[h.argmax()]
                     try:
                         mpv = (find_m_p_v.fit_mpv(mpv_guess),True)
                     except:
                         mpv = (-999, False)
-
                 else:
                     # find the peak in this pulseheight histogram
-                    mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv peak  and
-                                                    # second a boolean that is False if the search failed
+                    mpv = find_m_p_v.find_mpv()     # mpv is a set, with first the mpv
+                    # peak and second a boolean that is False if the search failed
 
                 # ensure that the algorithm did not fail:
                 if mpv[1]:
@@ -348,11 +378,12 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                 else:
                     plt.savefig('Pulseheights.png')
                     raise AssertionError('No MPV found!')
-                # calculate number of mips per pulse
+
                 mips = f.create_dataset('mips', shape=(len(traces), N_stations*4),
                                             chunks=(CHUNK_SIZE,N_stations*4),
                                             dtype='float64')
-                # loop over the pulseheights and convert to mips
+                # calculate number of mips per pulse
+                # do it per chunk because filling h5py arrays one by one is really slow
                 for i in range(int(np.floor(new_entries/CHUNK_SIZE))):
                     pulseheights_temp = pulseheights[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE,
                                         :] / mpv
@@ -362,8 +393,6 @@ def read_sapphire_simulation(file_location, new_file_location, N_stations,
                     pulseheights_temp = pulseheights[
                                         i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] / mpv
                     mips[i*CHUNK_SIZE:i*CHUNK_SIZE+remaining,:] = pulseheights_temp
-
-
 
             if verbose:
                 print('Finding MiP %s'% (timeit.default_timer() - start_time))

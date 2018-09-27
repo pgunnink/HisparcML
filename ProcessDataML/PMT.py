@@ -15,7 +15,7 @@ def _simulateCathode(N_photon):
 
 
 def _simulateTrace(N, start, tau=6, stop=300.0, gain=40, sigma=.7):
-    """Simulate event trace
+    """Simulate event trace, using the new parametrization
 
     :param N: Number of emitted cathode electrons
     :param start: Photon arrivel time in ns

@@ -25,6 +25,12 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
     """
     Merges the simulation data from individual 'the_simulation.h5' files from the
     core.* directories inside a certain directory
+
+    PS: Deze functie is ook een beetje een draak en heeft ook nodig onderhoud nodig.
+    Feitelijk gebeurt er niet heel veel: je leest alleen alle the_simulation.h5
+    bestanden uit en combineert ze. Het is dan waarschijnlijker ook makkelijker als je
+    zelf even iets klust.
+
     :param stations:        List of stations to use
     :param output:          The output file, by default main_data[503_505_...].h5
     :param orig_stations:   If there are more stations than those listed in the parameter
@@ -32,8 +38,22 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                             default this is None, indicating that the stations are the
                             same
     :param directory:       The directory to look in, by default the current directory
-    :param only_original:   If True only look for directories in the format coreXX
-    :return:
+    :param only_original:   If True only look for directories in the format coreXX,
+                            else look in every directory
+    :param verbose:         If True print more output statements
+    :param overwrite:       If True overwrite the Sapphire reconstruction in the
+                            individual the_simulation.h5 files
+    :param reconstruct:     If True reconstruct directions using Sapphire
+    :param save_coordinates:If True store the impact coordinates of the first particle
+                            that hit the detector (requires a version of sapphire that
+                            saves this information)
+    :param coincidences:    Minimum number of coincidences to include
+    :param cluster:         A Cluster object, if None creates a Cluster object itself
+                            using the list of stations provided.
+    :param photontimes:     If True stores the photontimes histogram. Also adds the
+                            individual timings to the photontimes, so traces are correctly
+                            timed relative to each other.
+    :return: nothing
     """
 
     # process parameters
@@ -68,6 +88,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
     dirs = [os.path.join(directory, o) for o in os.listdir(directory) if
             os.path.isdir(os.path.join(directory, o)) and core_re.match(o) is not None]
 
+    # The pytables class that describes the table to store in the h5 file
     class Traces(tables.IsDescription):
         id = tables.Int32Col()
         N = tables.Int32Col()
@@ -90,9 +111,6 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
             inslag_coordinates = tables.Float32Col((4,2))
             n_electron_muons = tables.Int16Col(shape=4)
 
-
-
-
     with tables.open_file(output_file, mode='w',
                           title='Collected data from %s' % STATIONS) as collected_traces:
 
@@ -102,9 +120,7 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
         table = collected_traces.create_table(group, 'Traces', Traces, 'Traces')
         row = table.row
 
-
-
-
+        # keep track of numbers in order to print those at the end
         total = 0
         throwing_away = 0
         # loop over all core* directories
@@ -191,12 +207,17 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         throwing_away += 1
                                         continue
                                     # write to new h5 file
+
+                                    # do some magic to recreate timings and shift
+                                    # photontimes (this is really a bit of a pointless
+                                    # exercise, since you should just do this right in
+                                    # the simulation anyway)
                                     particle_timings = np.zeros((4,))
                                     earliest_particle = np.inf
                                     non_zero_idx = []
-                                    for i, (trace, t0) in enumerate(zip(trace, timings)):
+                                    for i, (t, t0) in enumerate(zip(trace, timings)):
                                         old_trigger_delay = 0
-                                        for i_local, value in enumerate(trace):
+                                        for i_local, value in enumerate(t):
                                             if value < -30.0:
                                                 old_trigger_delay = i_local * 2.5
                                                 break
@@ -276,6 +297,10 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
 
                         # for every incoming shower the coincidences are saved for some
                         # reason, but only if there is a hit the timestamp>0
+
+                        # WARNING: I have not used this for a long time,
+                        # so it probably is broken (or does not the same things as with
+                        #  the single station). Basically do not use.
                         for coin in data.root.coincidences.coincidences.where(
                                 'timestamp>0'):
                             if coin['N'] >= coincidences:
@@ -321,6 +346,9 @@ def merge(stations, output = None, orig_stations=None, directory='.', verbose=Tr
                                         )>0:
                                     throwing_away += 1
                                     continue
+
+
+
                                 row['traces'] = trace
                                 row['N'] = coin['N']
                                 row['azimuth'] = azimuth
