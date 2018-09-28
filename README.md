@@ -1,7 +1,7 @@
 This is a pip-installable git directory which contains the code I used during my intern at HiSPARC. Installation is simple:
 
 ```
-pip install git+https://github.com/pgunnink/ProcessDataML.git
+pip install git+https://github.com/pgunnink/HisparcML.git
 ```
 
 `CustromMetrics.py` contains a custom metric that can be used during training of a neural network by Keras to display progress. It gives the mean of the inproduct between predicted and actual angle.
@@ -15,4 +15,6 @@ pip install git+https://github.com/pgunnink/ProcessDataML.git
 `PMT_tf.py` contains an implementation of the new PMT parametrization in Tensorflow
 
 `ProcessData.py` contains a function that creates a .h5 file that is ready to be used by Keras for training.
+
+
 
