@@ -3,7 +3,7 @@ import tables
 import re
 import os
 from sapphire import HiSPARCStations
-from ProcessDataML.DegRad import azimuth_zenith_to_cartestian
+from HisparcML.DegRad import azimuth_zenith_to_cartestian
 from sapphire.analysis.reconstructions import ReconstructSimulatedEvents, \
     ReconstructSimulatedCoincidences
 from tqdm import tqdm
