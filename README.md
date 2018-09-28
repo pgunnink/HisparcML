@@ -4,6 +4,8 @@ This is a pip-installable git directory which contains the code I used during my
 pip install git+https://github.com/pgunnink/ProcessDataML.git
 ```
 
+`Example Jupyter Notebook.ipynb`is an example notebookt that contains an example of training a neural network. This was intented to be run using Google Colab, but should run in any normal Jupyter environment.
+
 `CustromMetrics.py` contains a custom metric that can be used during training of a neural network by Keras to display progress. It gives the mean of the inproduct between predicted and actual angle.
 
 `DegRad.py` contains multiple convencience functions.
